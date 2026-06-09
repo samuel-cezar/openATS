@@ -27,5 +27,14 @@ services:
     volumes:
       - ./api/uploads:/app/uploads
 
+  frontend:
+    build: ./frontend
+    container_name: recruitment-frontend
+    restart: unless-stopped
+    ports:
+      - "5173:80"
+    depends_on:
+      - api
+
 volumes:
   mongo-data:
