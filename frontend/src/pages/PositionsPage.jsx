@@ -11,13 +11,16 @@ export default function PositionsPage({ processes }) {
   const [loading, setLoading]     = useState(true)
   const [showForm, setShowForm]   = useState(false)
   const [creating, setCreating]   = useState(false)
+  const [editingId, setEditingId] = useState(null)
+  const [confirmingId, setConfirmingId] = useState(null)
+  const [deletingId, setDeletingId] = useState(null)
   const [processingId, setProcessingId] = useState(null)
   const [expanded, setExpanded]   = useState(null)
   const [form, setForm] = useState({ selectionProcessId: '', title: '', jobDescription: '' })
 
   useEffect(() => { load() }, [])
   useEffect(() => {
-    const h = e => { if (e.key === 'Escape') setShowForm(false) }
+    const h = e => { if (e.key === 'Escape') closeForm() }
     window.addEventListener('keydown', h)
     return () => window.removeEventListener('keydown', h)
   }, [])
@@ -29,17 +32,55 @@ export default function PositionsPage({ processes }) {
     finally { setLoading(false) }
   }
 
-  async function handleCreate(e) {
+  function closeForm() {
+    setShowForm(false)
+    setEditingId(null)
+    setForm({ selectionProcessId: '', title: '', jobDescription: '' })
+  }
+
+  function openCreate() {
+    setEditingId(null)
+    setForm({ selectionProcessId: '', title: '', jobDescription: '' })
+    setShowForm(s => !s)
+  }
+
+  function startEdit(pos) {
+    setEditingId(pos.id || pos._id)
+    setForm({
+      selectionProcessId: pos.selectionProcessId || '',
+      title: pos.title || '',
+      jobDescription: pos.jobDescription || '',
+    })
+    setShowForm(true)
+  }
+
+  async function handleSubmit(e) {
     e.preventDefault()
     setCreating(true)
     try {
-      const created = await api.createPosition(form)
-      setPositions(ps => [created, ...ps])
-      setForm({ selectionProcessId: '', title: '', jobDescription: '' })
-      setShowForm(false)
-      toast('Position created')
+      if (editingId) {
+        const updated = await api.updatePosition(editingId, form)
+        setPositions(ps => ps.map(p => (p.id || p._id) === editingId ? updated : p))
+        toast('Position updated')
+      } else {
+        const created = await api.createPosition(form)
+        setPositions(ps => [created, ...ps])
+        toast('Position created')
+      }
+      closeForm()
     } catch (e) { toast(e.message, 'error') }
     finally { setCreating(false) }
+  }
+
+  async function handleDelete(id) {
+    setDeletingId(id)
+    try {
+      await api.deletePosition(id)
+      setPositions(ps => ps.filter(p => (p.id || p._id) !== id))
+      setConfirmingId(null)
+      toast('Position deleted')
+    } catch (e) { toast(e.message, 'error') }
+    finally { setDeletingId(null) }
   }
 
   async function handleExtract(posId) {
@@ -81,15 +122,15 @@ export default function PositionsPage({ processes }) {
             {loading ? 'Loading…' : `${positions.length} position${positions.length !== 1 ? 's' : ''}`}
           </p>
         </div>
-        <button className="btn btn-primary btn-sm" onClick={() => setShowForm(v => !v)}>
+        <button className="btn btn-primary btn-sm" onClick={openCreate}>
           <PlusIcon /> New Position
         </button>
       </div>
 
       {showForm && (
         <div className="inline-form">
-          <div className="inline-form-title">New Position</div>
-          <form onSubmit={handleCreate}>
+          <div className="inline-form-title">{editingId ? 'Edit Position' : 'New Position'}</div>
+          <form onSubmit={handleSubmit}>
             <div className="form-row">
               <div className="form-group">
                 <label className="form-label">Process *</label>
@@ -131,11 +172,13 @@ export default function PositionsPage({ processes }) {
               </div>
             </div>
             <div className="form-actions">
-              <button type="button" className="btn btn-ghost btn-sm" onClick={() => setShowForm(false)}>
+              <button type="button" className="btn btn-ghost btn-sm" onClick={closeForm}>
                 Cancel
               </button>
               <button type="submit" className="btn btn-primary btn-sm" disabled={creating}>
-                {creating ? <><Spinner /> Creating…</> : 'Create Position'}
+                {creating
+                  ? <><Spinner /> {editingId ? 'Saving…' : 'Creating…'}</>
+                  : (editingId ? 'Save Changes' : 'Create Position')}
               </button>
             </div>
           </form>
@@ -175,17 +218,34 @@ export default function PositionsPage({ processes }) {
                   </div>
 
                   <div className="list-row-actions" onClick={e => e.stopPropagation()}>
-                    {!processed && (
-                      <button
-                        className="btn btn-secondary btn-sm"
-                        disabled={isExtracting}
-                        onClick={() => handleExtract(id)}
-                      >
-                        {isExtracting
-                          ? <><Spinner dark /> Extracting…</>
-                          : <><SparkleIcon /> Extract Skills</>
-                        }
-                      </button>
+                    {confirmingId === id ? (
+                      <span className="confirm-delete">
+                        <span className="confirm-delete-label">Delete?</span>
+                        <button className="btn btn-danger btn-sm" disabled={deletingId === id}
+                          onClick={() => handleDelete(id)}>
+                          {deletingId === id ? <><Spinner /> Deleting…</> : 'Yes'}
+                        </button>
+                        <button className="btn btn-ghost btn-sm" onClick={() => setConfirmingId(null)}>
+                          Cancel
+                        </button>
+                      </span>
+                    ) : (
+                      <>
+                        {!processed && (
+                          <button
+                            className="btn btn-secondary btn-sm"
+                            disabled={isExtracting}
+                            onClick={() => handleExtract(id)}
+                          >
+                            {isExtracting
+                              ? <><Spinner dark /> Extracting…</>
+                              : <><SparkleIcon /> Extract Skills</>
+                            }
+                          </button>
+                        )}
+                        <button className="btn btn-ghost btn-sm" onClick={() => startEdit(pos)}>Edit</button>
+                        <button className="btn btn-danger btn-sm" onClick={() => setConfirmingId(id)}>Delete</button>
+                      </>
                     )}
                   </div>
 
@@ -194,6 +254,23 @@ export default function PositionsPage({ processes }) {
 
                 {isExpanded && (
                   <div className="row-expanded">
+                    {processed && pos.skillsStale && (
+                      <div className="outdated-banner">
+                        <span className="outdated-banner-text">
+                          Skills are outdated — the job description changed since extraction.
+                        </span>
+                        <button
+                          className="btn btn-secondary btn-sm"
+                          disabled={isExtracting}
+                          onClick={() => handleExtract(id)}
+                        >
+                          {isExtracting
+                            ? <><Spinner dark /> Re-extracting…</>
+                            : <><SparkleIcon /> Re-extract Skills</>
+                          }
+                        </button>
+                      </div>
+                    )}
                     {processed ? (
                       <>
                         <SkillRow label="Hard" skills={pos.hardSkillsRequired} variant="blue" />

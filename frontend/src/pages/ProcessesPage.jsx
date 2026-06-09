@@ -9,6 +9,9 @@ export default function ProcessesPage({ processes, setProcesses }) {
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [creating, setCreating] = useState(false)
+  const [editingId, setEditingId] = useState(null)
+  const [confirmingId, setConfirmingId] = useState(null)
+  const [deletingId, setDeletingId] = useState(null)
   const [form, setForm] = useState({ name: '', description: '', startDate: '', endDate: '' })
 
   useEffect(() => {
@@ -18,25 +21,68 @@ export default function ProcessesPage({ processes, setProcesses }) {
   }, [])
 
   useEffect(() => {
-    const handler = e => { if (e.key === 'Escape') setShowForm(false) }
+    const handler = e => { if (e.key === 'Escape') closeForm() }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
   }, [])
 
-  async function handleCreate(e) {
+  function toDateInput(d) {
+    return d ? String(d).slice(0, 10) : ''
+  }
+
+  function closeForm() {
+    setShowForm(false)
+    setEditingId(null)
+    setForm({ name: '', description: '', startDate: '', endDate: '' })
+  }
+
+  function openCreate() {
+    setEditingId(null)
+    setForm({ name: '', description: '', startDate: '', endDate: '' })
+    setShowForm(s => !s)
+  }
+
+  function startEdit(p) {
+    setEditingId(p.id || p._id)
+    setForm({
+      name: p.name || '',
+      description: p.description || '',
+      startDate: toDateInput(p.startDate),
+      endDate: toDateInput(p.endDate),
+    })
+    setShowForm(true)
+  }
+
+  async function handleSubmit(e) {
     e.preventDefault()
     setCreating(true)
     try {
       const payload = { name: form.name, description: form.description }
-      if (form.startDate) payload.startDate = form.startDate
-      if (form.endDate) payload.endDate = form.endDate
-      const created = await api.createProcess(payload)
-      setProcesses(ps => [created, ...ps])
-      setForm({ name: '', description: '', startDate: '', endDate: '' })
-      setShowForm(false)
-      toast('Selection process created')
+      payload.startDate = form.startDate || null
+      payload.endDate = form.endDate || null
+      if (editingId) {
+        const updated = await api.updateProcess(editingId, payload)
+        setProcesses(ps => ps.map(p => (p.id || p._id) === editingId ? updated : p))
+        toast('Selection process updated')
+      } else {
+        const created = await api.createProcess(payload)
+        setProcesses(ps => [created, ...ps])
+        toast('Selection process created')
+      }
+      closeForm()
     } catch (e) { toast(e.message, 'error') }
     finally { setCreating(false) }
+  }
+
+  async function handleDelete(id) {
+    setDeletingId(id)
+    try {
+      await api.deleteProcess(id)
+      setProcesses(ps => ps.filter(p => (p.id || p._id) !== id))
+      setConfirmingId(null)
+      toast('Selection process deleted')
+    } catch (e) { toast(e.message, 'error') }
+    finally { setDeletingId(null) }
   }
 
   function fmtDate(d) {
@@ -63,15 +109,15 @@ export default function ProcessesPage({ processes, setProcesses }) {
             {loading ? 'Loading…' : `${processes.length} process${processes.length !== 1 ? 'es' : ''}`}
           </p>
         </div>
-        <button className="btn btn-primary btn-sm" onClick={() => setShowForm(v => !v)}>
+        <button className="btn btn-primary btn-sm" onClick={openCreate}>
           <PlusIcon /> New Process
         </button>
       </div>
 
       {showForm && (
         <div className="inline-form">
-          <div className="inline-form-title">New Selection Process</div>
-          <form onSubmit={handleCreate}>
+          <div className="inline-form-title">{editingId ? 'Edit Selection Process' : 'New Selection Process'}</div>
+          <form onSubmit={handleSubmit}>
             <div className="form-row">
               <div className="form-group" style={{ flex: 2 }}>
                 <label className="form-label">Name *</label>
@@ -117,11 +163,13 @@ export default function ProcessesPage({ processes, setProcesses }) {
               </div>
             </div>
             <div className="form-actions">
-              <button type="button" className="btn btn-ghost btn-sm" onClick={() => setShowForm(false)}>
+              <button type="button" className="btn btn-ghost btn-sm" onClick={closeForm}>
                 Cancel
               </button>
               <button type="submit" className="btn btn-primary btn-sm" disabled={creating}>
-                {creating ? <><Spinner /> Creating…</> : 'Create Process'}
+                {creating
+                  ? <><Spinner /> {editingId ? 'Saving…' : 'Creating…'}</>
+                  : (editingId ? 'Save Changes' : 'Create Process')}
               </button>
             </div>
           </form>
@@ -145,11 +193,14 @@ export default function ProcessesPage({ processes, setProcesses }) {
                 <th>Start</th>
                 <th>End</th>
                 <th>Status</th>
+                <th style={{ textAlign: 'right' }}>Actions</th>
               </tr>
             </thead>
             <tbody>
-              {processes.map(p => (
-                <tr key={p.id || p._id}>
+              {processes.map(p => {
+                const id = p.id || p._id
+                return (
+                <tr key={id}>
                   <td className="cell-bold">{p.name}</td>
                   <td>
                     <div className="cell-truncate cell-secondary">{p.description || '—'}</div>
@@ -157,8 +208,30 @@ export default function ProcessesPage({ processes, setProcesses }) {
                   <td className="cell-mono cell-secondary">{fmtDate(p.startDate)}</td>
                   <td className="cell-mono cell-secondary">{fmtDate(p.endDate)}</td>
                   <td>{statusOf(p)}</td>
+                  <td>
+                    <div className="list-row-actions" style={{ justifyContent: 'flex-end' }}>
+                      {confirmingId === id ? (
+                        <span className="confirm-delete">
+                          <span className="confirm-delete-label">Delete?</span>
+                          <button className="btn btn-danger btn-sm" disabled={deletingId === id}
+                            onClick={() => handleDelete(id)}>
+                            {deletingId === id ? <><Spinner /> Deleting…</> : 'Yes'}
+                          </button>
+                          <button className="btn btn-ghost btn-sm" onClick={() => setConfirmingId(null)}>
+                            Cancel
+                          </button>
+                        </span>
+                      ) : (
+                        <>
+                          <button className="btn btn-ghost btn-sm" onClick={() => startEdit(p)}>Edit</button>
+                          <button className="btn btn-danger btn-sm" onClick={() => setConfirmingId(id)}>Delete</button>
+                        </>
+                      )}
+                    </div>
+                  </td>
                 </tr>
-              ))}
+                )
+              })}
             </tbody>
           </table>
         )}

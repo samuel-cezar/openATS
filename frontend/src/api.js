@@ -31,6 +31,10 @@ const idCache = {
       localStorage.setItem('ats_ids_' + key, JSON.stringify(ids));
     }
   },
+  remove(key, id) {
+    const ids = this.get(key).filter(x => x !== String(id));
+    localStorage.setItem('ats_ids_' + key, JSON.stringify(ids));
+  },
 };
 
 function normalizeList(data) {
@@ -44,7 +48,10 @@ function normalizeList(data) {
 export const api = {
   // ── Selection Processes ──────────────────────────────
   getProcesses: () => apiFetch('GET', '/selection-processes').then(normalizeList),
+  getProcess: (id) => apiFetch('GET', `/selection-processes/${id}`),
   createProcess: (data) => apiFetch('POST', '/selection-processes', data),
+  updateProcess: (id, data) => apiFetch('PUT', `/selection-processes/${id}`, data),
+  deleteProcess: (id) => apiFetch('DELETE', `/selection-processes/${id}`),
 
   // ── Positions ────────────────────────────────────────
   getPositions: async () => {
@@ -61,6 +68,12 @@ export const api = {
     const result = await apiFetch('POST', '/positions', data);
     const id = result.id || result._id;
     if (id) idCache.add('positions', id);
+    return result;
+  },
+  updatePosition: (id, data) => apiFetch('PUT', `/positions/${id}`, data),
+  deletePosition: async (id) => {
+    const result = await apiFetch('DELETE', `/positions/${id}`);
+    idCache.remove('positions', id);
     return result;
   },
   processPosition: (id) => apiFetch('POST', `/positions/${id}/process`),
@@ -81,6 +94,12 @@ export const api = {
     const result = await apiFetch('POST', '/candidates', data);
     const id = result.id || result._id;
     if (id) idCache.add('candidates', id);
+    return result;
+  },
+  updateCandidate: (id, data) => apiFetch('PUT', `/candidates/${id}`, data),
+  deleteCandidate: async (id) => {
+    const result = await apiFetch('DELETE', `/candidates/${id}`);
+    idCache.remove('candidates', id);
     return result;
   },
   uploadResume: async (id, file) => {

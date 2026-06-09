@@ -54,9 +54,20 @@ router.post('/:id/process', async (req, res) => {
     // TODO: run RAG skill extraction → hardSkills, softSkills
     // TODO: generate embeddings → embeddingHS, embeddingSS
     candidate.processed = true;
+    candidate.skillsStale = false;
     await candidate.save();
 
     res.json({ message: 'Processing triggered (stub)', candidate });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /candidates
+router.get('/', async (req, res) => {
+  try {
+    const candidates = await Candidate.find({ tenantId: req.tenantId });
+    res.json(candidates);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -68,6 +79,37 @@ router.get('/:id', async (req, res) => {
     const candidate = await Candidate.findOne({ _id: req.params.id, tenantId: req.tenantId });
     if (!candidate) return res.status(404).json({ error: 'Candidate not found' });
     res.json(candidate);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// PUT /candidates/:id — name/email only; does not affect resume-derived skills
+router.put('/:id', async (req, res) => {
+  try {
+    const { name, email } = req.body;
+    const updates = {};
+    if (name !== undefined) updates.name = name;
+    if (email !== undefined) updates.email = email;
+    const candidate = await Candidate.findOneAndUpdate(
+      { _id: req.params.id, tenantId: req.tenantId },
+      updates,
+      { new: true, runValidators: true }
+    );
+    if (!candidate) return res.status(404).json({ error: 'Candidate not found' });
+    res.json(candidate);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// DELETE /candidates/:id — also clears its match results
+router.delete('/:id', async (req, res) => {
+  try {
+    const candidate = await Candidate.findOneAndDelete({ _id: req.params.id, tenantId: req.tenantId });
+    if (!candidate) return res.status(404).json({ error: 'Candidate not found' });
+    await Match.deleteMany({ candidateId: req.params.id, tenantId: req.tenantId });
+    res.json({ deleted: true });
   } catch (err) {
     res.status(400).json({ error: err.message });
   }

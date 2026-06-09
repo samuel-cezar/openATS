@@ -10,7 +10,8 @@ const candidateSchema = new mongoose.Schema({
   softSkills: [String],
   embeddingHS: [Number],
   embeddingSS: [Number],
-  processed: { type: Boolean, default: false }
+  processed: { type: Boolean, default: false },
+  skillsStale: { type: Boolean, default: false }
 });
 
 module.exports = mongoose.model('Candidate', candidateSchema);

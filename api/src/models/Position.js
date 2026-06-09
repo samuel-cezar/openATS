@@ -9,7 +9,8 @@ const positionSchema = new mongoose.Schema({
   softSkillsRequired: [String],
   embeddingHS: [Number],
   embeddingSS: [Number],
-  processed: { type: Boolean, default: false }
+  processed: { type: Boolean, default: false },
+  skillsStale: { type: Boolean, default: false }
 });
 
 module.exports = mongoose.model('Position', positionSchema);

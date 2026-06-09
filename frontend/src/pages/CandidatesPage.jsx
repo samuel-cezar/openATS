@@ -11,6 +11,9 @@ export default function CandidatesPage() {
   const [loading, setLoading]       = useState(true)
   const [showForm, setShowForm]     = useState(false)
   const [creating, setCreating]     = useState(false)
+  const [editingId, setEditingId]   = useState(null)
+  const [confirmingId, setConfirmingId] = useState(null)
+  const [deletingId, setDeletingId] = useState(null)
   const [uploadingId, setUploadingId]   = useState(null)
   const [processingId, setProcessingId] = useState(null)
   const [expanded, setExpanded]     = useState(null)
@@ -19,7 +22,7 @@ export default function CandidatesPage() {
 
   useEffect(() => { load() }, [])
   useEffect(() => {
-    const h = e => { if (e.key === 'Escape') setShowForm(false) }
+    const h = e => { if (e.key === 'Escape') closeForm() }
     window.addEventListener('keydown', h)
     return () => window.removeEventListener('keydown', h)
   }, [])
@@ -31,17 +34,51 @@ export default function CandidatesPage() {
     finally { setLoading(false) }
   }
 
-  async function handleCreate(e) {
+  function closeForm() {
+    setShowForm(false)
+    setEditingId(null)
+    setForm({ name: '', email: '' })
+  }
+
+  function openCreate() {
+    setEditingId(null)
+    setForm({ name: '', email: '' })
+    setShowForm(s => !s)
+  }
+
+  function startEdit(c) {
+    setEditingId(c.id || c._id)
+    setForm({ name: c.name || '', email: c.email || '' })
+    setShowForm(true)
+  }
+
+  async function handleSubmit(e) {
     e.preventDefault()
     setCreating(true)
     try {
-      const created = await api.createCandidate(form)
-      setCandidates(cs => [created, ...cs])
-      setForm({ name: '', email: '' })
-      setShowForm(false)
-      toast('Candidate added')
+      if (editingId) {
+        const updated = await api.updateCandidate(editingId, form)
+        setCandidates(cs => cs.map(c => (c.id || c._id) === editingId ? updated : c))
+        toast('Candidate updated')
+      } else {
+        const created = await api.createCandidate(form)
+        setCandidates(cs => [created, ...cs])
+        toast('Candidate added')
+      }
+      closeForm()
     } catch (e) { toast(e.message, 'error') }
     finally { setCreating(false) }
+  }
+
+  async function handleDelete(id) {
+    setDeletingId(id)
+    try {
+      await api.deleteCandidate(id)
+      setCandidates(cs => cs.filter(c => (c.id || c._id) !== id))
+      setConfirmingId(null)
+      toast('Candidate deleted')
+    } catch (e) { toast(e.message, 'error') }
+    finally { setDeletingId(null) }
   }
 
   async function handleUpload(cId) {
@@ -97,15 +134,15 @@ export default function CandidatesPage() {
             {loading ? 'Loading…' : `${candidates.length} candidate${candidates.length !== 1 ? 's' : ''}`}
           </p>
         </div>
-        <button className="btn btn-primary btn-sm" onClick={() => setShowForm(v => !v)}>
+        <button className="btn btn-primary btn-sm" onClick={openCreate}>
           <PlusIcon /> New Candidate
         </button>
       </div>
 
       {showForm && (
         <div className="inline-form">
-          <div className="inline-form-title">New Candidate</div>
-          <form onSubmit={handleCreate}>
+          <div className="inline-form-title">{editingId ? 'Edit Candidate' : 'New Candidate'}</div>
+          <form onSubmit={handleSubmit}>
             <div className="form-row">
               <div className="form-group">
                 <label className="form-label">Full Name *</label>
@@ -131,11 +168,13 @@ export default function CandidatesPage() {
               </div>
             </div>
             <div className="form-actions">
-              <button type="button" className="btn btn-ghost btn-sm" onClick={() => setShowForm(false)}>
+              <button type="button" className="btn btn-ghost btn-sm" onClick={closeForm}>
                 Cancel
               </button>
               <button type="submit" className="btn btn-primary btn-sm" disabled={creating}>
-                {creating ? <><Spinner /> Adding…</> : 'Add Candidate'}
+                {creating
+                  ? <><Spinner /> {editingId ? 'Saving…' : 'Adding…'}</>
+                  : (editingId ? 'Save Changes' : 'Add Candidate')}
               </button>
             </div>
           </form>
@@ -187,52 +226,71 @@ export default function CandidatesPage() {
                     </div>
                   </div>
 
-                  {!processed && (
-                    <div className="candidate-actions" onClick={e => e.stopPropagation()}>
-                      <label className="file-btn">
-                        <UploadIcon />
-                        {pendingFile
-                          ? <span className="file-name-label">
-                              {pendingFile.name.length > 20
-                                ? pendingFile.name.slice(0, 17) + '…'
-                                : pendingFile.name}
-                            </span>
-                          : <span>Resume PDF</span>
-                        }
-                        <input
-                          type="file"
-                          accept=".pdf"
-                          style={{ display: 'none' }}
-                          onChange={e => {
-                            const f = e.target.files[0]
-                            if (f) setPendingFiles(pf => ({ ...pf, [cId]: f }))
-                            e.target.value = ''
-                          }}
-                        />
-                      </label>
-
-                      {pendingFile && (
-                        <button
-                          className="btn btn-secondary btn-sm"
-                          disabled={isUploading}
-                          onClick={() => handleUpload(cId)}
-                        >
-                          {isUploading ? <><Spinner dark /> Uploading…</> : 'Upload'}
+                  <div className="candidate-actions" onClick={e => e.stopPropagation()}>
+                    {confirmingId === cId ? (
+                      <span className="confirm-delete">
+                        <span className="confirm-delete-label">Delete?</span>
+                        <button className="btn btn-danger btn-sm" disabled={deletingId === cId}
+                          onClick={() => handleDelete(cId)}>
+                          {deletingId === cId ? <><Spinner /> Deleting…</> : 'Yes'}
                         </button>
-                      )}
+                        <button className="btn btn-ghost btn-sm" onClick={() => setConfirmingId(null)}>
+                          Cancel
+                        </button>
+                      </span>
+                    ) : (
+                      <>
+                        {!processed && (
+                          <>
+                            <label className="file-btn">
+                              <UploadIcon />
+                              {pendingFile
+                                ? <span className="file-name-label">
+                                    {pendingFile.name.length > 20
+                                      ? pendingFile.name.slice(0, 17) + '…'
+                                      : pendingFile.name}
+                                  </span>
+                                : <span>Resume PDF</span>
+                              }
+                              <input
+                                type="file"
+                                accept=".pdf"
+                                style={{ display: 'none' }}
+                                onChange={e => {
+                                  const f = e.target.files[0]
+                                  if (f) setPendingFiles(pf => ({ ...pf, [cId]: f }))
+                                  e.target.value = ''
+                                }}
+                              />
+                            </label>
 
-                      <button
-                        className="btn btn-secondary btn-sm"
-                        disabled={isProcessing}
-                        onClick={() => handleProcess(cId)}
-                      >
-                        {isProcessing
-                          ? <><Spinner dark /> Processing…</>
-                          : <><SparkleIcon /> Process</>
-                        }
-                      </button>
-                    </div>
-                  )}
+                            {pendingFile && (
+                              <button
+                                className="btn btn-secondary btn-sm"
+                                disabled={isUploading}
+                                onClick={() => handleUpload(cId)}
+                              >
+                                {isUploading ? <><Spinner dark /> Uploading…</> : 'Upload'}
+                              </button>
+                            )}
+
+                            <button
+                              className="btn btn-secondary btn-sm"
+                              disabled={isProcessing}
+                              onClick={() => handleProcess(cId)}
+                            >
+                              {isProcessing
+                                ? <><Spinner dark /> Processing…</>
+                                : <><SparkleIcon /> Process</>
+                              }
+                            </button>
+                          </>
+                        )}
+                        <button className="btn btn-ghost btn-sm" onClick={() => startEdit(c)}>Edit</button>
+                        <button className="btn btn-danger btn-sm" onClick={() => setConfirmingId(cId)}>Delete</button>
+                      </>
+                    )}
+                  </div>
 
                   <div
                     style={{ cursor: 'pointer', paddingLeft: 4 }}
@@ -244,6 +302,23 @@ export default function CandidatesPage() {
 
                 {isExpanded && (
                   <div className="row-expanded row-expanded-indented">
+                    {processed && c.skillsStale && (
+                      <div className="outdated-banner">
+                        <span className="outdated-banner-text">
+                          Skills are outdated — this candidate changed since processing.
+                        </span>
+                        <button
+                          className="btn btn-secondary btn-sm"
+                          disabled={isProcessing}
+                          onClick={() => handleProcess(cId)}
+                        >
+                          {isProcessing
+                            ? <><Spinner dark /> Re-processing…</>
+                            : <><SparkleIcon /> Re-process</>
+                          }
+                        </button>
+                      </div>
+                    )}
                     {processed ? (
                       <>
                         <SkillRow label="Hard" skills={c.hardSkills} variant="blue" />
