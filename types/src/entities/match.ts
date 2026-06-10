@@ -1,4 +1,4 @@
-import { ISODateString, ObjectId } from './common';
+import type { ISODateString, ObjectId } from './common';
 
 export interface Match {
   _id: ObjectId;

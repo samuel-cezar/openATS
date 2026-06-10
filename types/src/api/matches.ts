@@ -1,4 +1,4 @@
-import { Match } from '../entities/match';
+import type { Match } from '../entities/match';
 
 // POST /api/v1/matches/position/:positionId
 export interface ComputeMatchesResponse {

@@ -1,4 +1,4 @@
-import { User, UserRole } from '../entities/user';
+import type { User, UserRole } from '../entities/user';
 
 // POST /api/v1/users
 export interface CreateUserRequest {

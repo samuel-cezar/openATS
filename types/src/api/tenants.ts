@@ -1,5 +1,5 @@
-import { Tenant } from '../entities/tenant';
-import { TenantWeights } from '../scoring/matchScore';
+import type { Tenant } from '../entities/tenant';
+import type { TenantWeights } from '../scoring/matchScore';
 
 // POST /api/v1/tenants
 export interface CreateTenantRequest {

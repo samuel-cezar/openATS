@@ -1,26 +1,28 @@
 import { useState, useEffect } from 'react'
+import type { FormEvent } from 'react'
 import { api } from '../api'
+import type { PositionRecord, ProcessRecord } from '../api'
 import {
   useToast, Spinner, ProcessedBadge, EmptyState, SkillRow,
   SparkleIcon, ChevronIcon, PlusIcon,
 } from '../components'
 
-export default function PositionsPage({ processes }) {
+export default function PositionsPage({ processes }: { processes: ProcessRecord[] }) {
   const toast = useToast()
-  const [positions, setPositions] = useState([])
+  const [positions, setPositions] = useState<PositionRecord[]>([])
   const [loading, setLoading]     = useState(true)
   const [showForm, setShowForm]   = useState(false)
   const [creating, setCreating]   = useState(false)
-  const [editingId, setEditingId] = useState(null)
-  const [confirmingId, setConfirmingId] = useState(null)
-  const [deletingId, setDeletingId] = useState(null)
-  const [processingId, setProcessingId] = useState(null)
-  const [expanded, setExpanded]   = useState(null)
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [confirmingId, setConfirmingId] = useState<string | null>(null)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [processingId, setProcessingId] = useState<string | null>(null)
+  const [expanded, setExpanded]   = useState<string | null>(null)
   const [form, setForm] = useState({ selectionProcessId: '', title: '', jobDescription: '' })
 
   useEffect(() => { load() }, [])
   useEffect(() => {
-    const h = e => { if (e.key === 'Escape') closeForm() }
+    const h = (e: KeyboardEvent) => { if (e.key === 'Escape') closeForm() }
     window.addEventListener('keydown', h)
     return () => window.removeEventListener('keydown', h)
   }, [])
@@ -28,7 +30,7 @@ export default function PositionsPage({ processes }) {
   async function load() {
     setLoading(true)
     try { setPositions(await api.getPositions()) }
-    catch (e) { toast(e.message, 'error') }
+    catch (err: unknown) { toast(err instanceof Error ? err.message : String(err), 'error') }
     finally { setLoading(false) }
   }
 
@@ -44,7 +46,7 @@ export default function PositionsPage({ processes }) {
     setShowForm(s => !s)
   }
 
-  function startEdit(pos) {
+  function startEdit(pos: PositionRecord) {
     setEditingId(pos.id || pos._id)
     setForm({
       selectionProcessId: pos.selectionProcessId || '',
@@ -54,7 +56,7 @@ export default function PositionsPage({ processes }) {
     setShowForm(true)
   }
 
-  async function handleSubmit(e) {
+  async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault()
     setCreating(true)
     try {
@@ -68,22 +70,22 @@ export default function PositionsPage({ processes }) {
         toast('Position created')
       }
       closeForm()
-    } catch (e) { toast(e.message, 'error') }
+    } catch (err: unknown) { toast(err instanceof Error ? err.message : String(err), 'error') }
     finally { setCreating(false) }
   }
 
-  async function handleDelete(id) {
+  async function handleDelete(id: string) {
     setDeletingId(id)
     try {
       await api.deletePosition(id)
       setPositions(ps => ps.filter(p => (p.id || p._id) !== id))
       setConfirmingId(null)
       toast('Position deleted')
-    } catch (e) { toast(e.message, 'error') }
+    } catch (err: unknown) { toast(err instanceof Error ? err.message : String(err), 'error') }
     finally { setDeletingId(null) }
   }
 
-  async function handleExtract(posId) {
+  async function handleExtract(posId: string) {
     setProcessingId(posId)
     try {
       await api.processPosition(posId)
@@ -91,22 +93,22 @@ export default function PositionsPage({ processes }) {
       setPositions(ps => ps.map(p => (p.id || p._id) === posId ? fresh : p))
       setExpanded(posId)
       toast('Skills extracted successfully')
-    } catch (e) { toast(e.message, 'error') }
+    } catch (err: unknown) { toast(err instanceof Error ? err.message : String(err), 'error') }
     finally { setProcessingId(null) }
   }
 
-  function processName(id) {
+  function processName(id?: string) {
     const p = processes.find(p => (p.id || p._id) === id)
     return p ? p.name : (id ? String(id).slice(0, 8) + '…' : '—')
   }
 
-  function isProcessed(pos) {
+  function isProcessed(pos: PositionRecord) {
     return pos.processed ||
       (pos.hardSkillsRequired && pos.hardSkillsRequired.length > 0) ||
       (pos.softSkillsRequired  && pos.softSkillsRequired.length  > 0)
   }
 
-  function skillCount(pos) {
+  function skillCount(pos: PositionRecord) {
     const h = (pos.hardSkillsRequired || []).length
     const s = (pos.softSkillsRequired  || []).length
     if (!h && !s) return null

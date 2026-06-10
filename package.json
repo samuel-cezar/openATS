@@ -5,7 +5,7 @@
   "scripts": {
     "dev:api": "pnpm --filter recruitment-api dev",
     "dev:frontend": "pnpm --filter openats-frontend dev",
-    "typecheck": "pnpm --filter @openats/types typecheck && pnpm --filter recruitment-api typecheck",
+    "typecheck": "pnpm --filter @openats/types typecheck && pnpm --filter recruitment-api typecheck && pnpm --filter openats-frontend typecheck",
     "build": "pnpm --filter openats-frontend build"
   }
 }

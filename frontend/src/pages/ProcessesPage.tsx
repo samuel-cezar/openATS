@@ -1,17 +1,22 @@
 import { useState, useEffect } from 'react'
+import type { Dispatch, FormEvent, SetStateAction } from 'react'
 import { api } from '../api'
+import type { ProcessPayload, ProcessRecord } from '../api'
 import {
   useToast, Spinner, Badge, EmptyState, PlusIcon,
 } from '../components'
 
-export default function ProcessesPage({ processes, setProcesses }) {
+export default function ProcessesPage({ processes, setProcesses }: {
+  processes: ProcessRecord[]
+  setProcesses: Dispatch<SetStateAction<ProcessRecord[]>>
+}) {
   const toast = useToast()
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [creating, setCreating] = useState(false)
-  const [editingId, setEditingId] = useState(null)
-  const [confirmingId, setConfirmingId] = useState(null)
-  const [deletingId, setDeletingId] = useState(null)
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [confirmingId, setConfirmingId] = useState<string | null>(null)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
   const [form, setForm] = useState({ name: '', description: '', startDate: '', endDate: '' })
 
   useEffect(() => {
@@ -21,12 +26,12 @@ export default function ProcessesPage({ processes, setProcesses }) {
   }, [])
 
   useEffect(() => {
-    const handler = e => { if (e.key === 'Escape') closeForm() }
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') closeForm() }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
   }, [])
 
-  function toDateInput(d) {
+  function toDateInput(d?: string) {
     return d ? String(d).slice(0, 10) : ''
   }
 
@@ -42,7 +47,7 @@ export default function ProcessesPage({ processes, setProcesses }) {
     setShowForm(s => !s)
   }
 
-  function startEdit(p) {
+  function startEdit(p: ProcessRecord) {
     setEditingId(p.id || p._id)
     setForm({
       name: p.name || '',
@@ -53,13 +58,16 @@ export default function ProcessesPage({ processes, setProcesses }) {
     setShowForm(true)
   }
 
-  async function handleSubmit(e) {
+  async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault()
     setCreating(true)
     try {
-      const payload = { name: form.name, description: form.description }
-      payload.startDate = form.startDate || null
-      payload.endDate = form.endDate || null
+      const payload: ProcessPayload = {
+        name: form.name,
+        description: form.description,
+        startDate: form.startDate || null,
+        endDate: form.endDate || null,
+      }
       if (editingId) {
         const updated = await api.updateProcess(editingId, payload)
         setProcesses(ps => ps.map(p => (p.id || p._id) === editingId ? updated : p))
@@ -70,28 +78,28 @@ export default function ProcessesPage({ processes, setProcesses }) {
         toast('Selection process created')
       }
       closeForm()
-    } catch (e) { toast(e.message, 'error') }
+    } catch (err: unknown) { toast(err instanceof Error ? err.message : String(err), 'error') }
     finally { setCreating(false) }
   }
 
-  async function handleDelete(id) {
+  async function handleDelete(id: string) {
     setDeletingId(id)
     try {
       await api.deleteProcess(id)
       setProcesses(ps => ps.filter(p => (p.id || p._id) !== id))
       setConfirmingId(null)
       toast('Selection process deleted')
-    } catch (e) { toast(e.message, 'error') }
+    } catch (err: unknown) { toast(err instanceof Error ? err.message : String(err), 'error') }
     finally { setDeletingId(null) }
   }
 
-  function fmtDate(d) {
+  function fmtDate(d?: string) {
     if (!d) return '—'
     try { return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) }
     catch { return d }
   }
 
-  function statusOf(p) {
+  function statusOf(p: ProcessRecord) {
     const now = new Date()
     const start = p.startDate ? new Date(p.startDate) : null
     const end   = p.endDate   ? new Date(p.endDate)   : null

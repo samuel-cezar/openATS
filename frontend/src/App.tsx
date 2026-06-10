@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { ToastProvider, Sidebar } from './components'
+import type { ProcessRecord } from './api'
 import ProcessesPage from './pages/ProcessesPage'
 import PositionsPage from './pages/PositionsPage'
 import CandidatesPage from './pages/CandidatesPage'
@@ -9,9 +10,9 @@ export default function App() {
   const [page, setPage] = useState(
     () => localStorage.getItem('ats_nav') || 'processes'
   )
-  const [processes, setProcesses] = useState([])
+  const [processes, setProcesses] = useState<ProcessRecord[]>([])
 
-  function navigate(p) {
+  function navigate(p: string) {
     setPage(p)
     localStorage.setItem('ats_nav', p)
   }

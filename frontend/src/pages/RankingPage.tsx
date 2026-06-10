@@ -1,15 +1,16 @@
 import { useState, useEffect } from 'react'
 import { api } from '../api'
+import type { PositionRecord, ProcessRecord, RankingEntry } from '../api'
 import {
   useToast, Spinner, ScoreDisplay, EmptyState,
   SparkleIcon, RefreshIcon,
 } from '../components'
 
-export default function RankingPage({ processes }) {
+export default function RankingPage({ processes }: { processes: ProcessRecord[] }) {
   const toast = useToast()
-  const [positions, setPositions]   = useState([])
+  const [positions, setPositions]   = useState<PositionRecord[]>([])
   const [selectedId, setSelectedId] = useState('')
-  const [ranking, setRanking]       = useState(null)
+  const [ranking, setRanking]       = useState<RankingEntry[] | null>(null)
   const [computing, setComputing]   = useState(false)
   const [loadingRanking, setLoadingRanking] = useState(false)
 
@@ -30,9 +31,10 @@ export default function RankingPage({ processes }) {
       const list = Array.isArray(data) ? data
         : (data.ranking || data.data || data.results || [])
       setRanking(list)
-    } catch (e) {
-      if (!e.message.includes('404') && !e.message.includes('Not Found')) {
-        toast(e.message, 'error')
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err)
+      if (!msg.includes('404') && !msg.includes('Not Found')) {
+        toast(msg, 'error')
       }
       setRanking([])
     } finally { setLoadingRanking(false) }
@@ -45,11 +47,11 @@ export default function RankingPage({ processes }) {
       await api.computeMatches(selectedId)
       toast('Rankings computed successfully')
       await fetchRanking()
-    } catch (e) { toast(e.message, 'error') }
+    } catch (err: unknown) { toast(err instanceof Error ? err.message : String(err), 'error') }
     finally { setComputing(false) }
   }
 
-  function rankStyle(rank) {
+  function rankStyle(rank: number) {
     if (rank === 1) return 'rank-gold'
     if (rank === 2) return 'rank-silver'
     if (rank === 3) return 'rank-bronze'
@@ -141,7 +143,7 @@ export default function RankingPage({ processes }) {
                 const email = entry.email || entry.candidate?.email
 
                 return (
-                  <tr key={entry.candidateId || entry.id || i}>
+                  <tr key={String(entry.candidateId || entry.id || i)}>
                     <td>
                       <div className={`rank-badge ${rankStyle(rank)}`}>{rank}</div>
                     </td>

@@ -1,5 +1,5 @@
-import { ObjectId } from './common';
-import { EmbeddingVector } from '../scoring/embeddings';
+import type { ObjectId } from './common';
+import type { EmbeddingVector } from '../scoring/embeddings';
 
 export interface Position {
   _id: ObjectId;

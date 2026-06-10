@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react'
+import type { FormEvent } from 'react'
 import { api } from '../api'
+import type { CandidateRecord } from '../api'
 import {
   useToast, Spinner, ProcessedBadge, EmptyState, SkillRow,
   SparkleIcon, ChevronIcon, PlusIcon, UploadIcon,
@@ -7,22 +9,22 @@ import {
 
 export default function CandidatesPage() {
   const toast = useToast()
-  const [candidates, setCandidates] = useState([])
+  const [candidates, setCandidates] = useState<CandidateRecord[]>([])
   const [loading, setLoading]       = useState(true)
   const [showForm, setShowForm]     = useState(false)
   const [creating, setCreating]     = useState(false)
-  const [editingId, setEditingId]   = useState(null)
-  const [confirmingId, setConfirmingId] = useState(null)
-  const [deletingId, setDeletingId] = useState(null)
-  const [uploadingId, setUploadingId]   = useState(null)
-  const [processingId, setProcessingId] = useState(null)
-  const [expanded, setExpanded]     = useState(null)
-  const [pendingFiles, setPendingFiles] = useState({})
+  const [editingId, setEditingId]   = useState<string | null>(null)
+  const [confirmingId, setConfirmingId] = useState<string | null>(null)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [uploadingId, setUploadingId]   = useState<string | null>(null)
+  const [processingId, setProcessingId] = useState<string | null>(null)
+  const [expanded, setExpanded]     = useState<string | null>(null)
+  const [pendingFiles, setPendingFiles] = useState<Record<string, File>>({})
   const [form, setForm] = useState({ name: '', email: '' })
 
   useEffect(() => { load() }, [])
   useEffect(() => {
-    const h = e => { if (e.key === 'Escape') closeForm() }
+    const h = (e: KeyboardEvent) => { if (e.key === 'Escape') closeForm() }
     window.addEventListener('keydown', h)
     return () => window.removeEventListener('keydown', h)
   }, [])
@@ -30,7 +32,7 @@ export default function CandidatesPage() {
   async function load() {
     setLoading(true)
     try { setCandidates(await api.getCandidates()) }
-    catch (e) { toast(e.message, 'error') }
+    catch (err: unknown) { toast(err instanceof Error ? err.message : String(err), 'error') }
     finally { setLoading(false) }
   }
 
@@ -46,13 +48,13 @@ export default function CandidatesPage() {
     setShowForm(s => !s)
   }
 
-  function startEdit(c) {
+  function startEdit(c: CandidateRecord) {
     setEditingId(c.id || c._id)
     setForm({ name: c.name || '', email: c.email || '' })
     setShowForm(true)
   }
 
-  async function handleSubmit(e) {
+  async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault()
     setCreating(true)
     try {
@@ -66,22 +68,22 @@ export default function CandidatesPage() {
         toast('Candidate added')
       }
       closeForm()
-    } catch (e) { toast(e.message, 'error') }
+    } catch (err: unknown) { toast(err instanceof Error ? err.message : String(err), 'error') }
     finally { setCreating(false) }
   }
 
-  async function handleDelete(id) {
+  async function handleDelete(id: string) {
     setDeletingId(id)
     try {
       await api.deleteCandidate(id)
       setCandidates(cs => cs.filter(c => (c.id || c._id) !== id))
       setConfirmingId(null)
       toast('Candidate deleted')
-    } catch (e) { toast(e.message, 'error') }
+    } catch (err: unknown) { toast(err instanceof Error ? err.message : String(err), 'error') }
     finally { setDeletingId(null) }
   }
 
-  async function handleUpload(cId) {
+  async function handleUpload(cId: string) {
     const file = pendingFiles[cId]
     if (!file) return
     setUploadingId(cId)
@@ -91,11 +93,11 @@ export default function CandidatesPage() {
       toast('Resume uploaded')
       const fresh = await api.getCandidate(cId)
       setCandidates(cs => cs.map(c => (c.id || c._id) === cId ? fresh : c))
-    } catch (e) { toast(e.message, 'error') }
+    } catch (err: unknown) { toast(err instanceof Error ? err.message : String(err), 'error') }
     finally { setUploadingId(null) }
   }
 
-  async function handleProcess(cId) {
+  async function handleProcess(cId: string) {
     setProcessingId(cId)
     try {
       await api.processCandidate(cId)
@@ -103,22 +105,22 @@ export default function CandidatesPage() {
       setCandidates(cs => cs.map(c => (c.id || c._id) === cId ? fresh : c))
       setExpanded(cId)
       toast('Candidate processed')
-    } catch (e) { toast(e.message, 'error') }
+    } catch (err: unknown) { toast(err instanceof Error ? err.message : String(err), 'error') }
     finally { setProcessingId(null) }
   }
 
-  function isProcessed(c) {
+  function isProcessed(c: CandidateRecord) {
     return c.processed ||
       (c.hardSkills && c.hardSkills.length > 0) ||
       (c.softSkills  && c.softSkills.length  > 0)
   }
 
-  function initials(name) {
+  function initials(name?: string) {
     if (!name) return '?'
     return name.split(' ').map(p => p[0]).slice(0, 2).join('').toUpperCase()
   }
 
-  function avatarHue(name) {
+  function avatarHue(name?: string) {
     if (!name) return 210
     let h = 0
     for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) & 0xffff
@@ -257,7 +259,7 @@ export default function CandidatesPage() {
                                 accept=".pdf"
                                 style={{ display: 'none' }}
                                 onChange={e => {
-                                  const f = e.target.files[0]
+                                  const f = e.target.files?.[0]
                                   if (f) setPendingFiles(pf => ({ ...pf, [cId]: f }))
                                   e.target.value = ''
                                 }}

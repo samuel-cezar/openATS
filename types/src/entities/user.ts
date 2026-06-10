@@ -1,4 +1,4 @@
-import { ObjectId } from './common';
+import type { ObjectId } from './common';
 
 export type UserRole = 'recruiter' | 'admin';
 

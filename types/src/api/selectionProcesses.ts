@@ -1,6 +1,6 @@
-import { ISODateString } from '../entities/common';
-import { SelectionProcess } from '../entities/selectionProcess';
-import { DeletedResponse } from './common';
+import type { ISODateString } from '../entities/common';
+import type { SelectionProcess } from '../entities/selectionProcess';
+import type { DeletedResponse } from './common';
 
 // POST /api/v1/selection-processes
 export interface CreateSelectionProcessRequest {

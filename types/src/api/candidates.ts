@@ -1,7 +1,7 @@
-import { Candidate } from '../entities/candidate';
-import { Position } from '../entities/position';
-import { Match } from '../entities/match';
-import { DeletedResponse } from './common';
+import type { Candidate } from '../entities/candidate';
+import type { Position } from '../entities/position';
+import type { Match } from '../entities/match';
+import type { DeletedResponse } from './common';
 
 // POST /api/v1/candidates
 export interface CreateCandidateRequest {

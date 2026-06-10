@@ -1,12 +1,16 @@
 import { useState, useEffect, useCallback, useRef, createContext, useContext } from 'react'
+import type { ReactNode } from 'react'
 
 // ─── Toast System ──────────────────────────────────────────────────────────────
-const ToastCtx = createContext(null)
+export type ToastType = 'success' | 'error'
+export type AddToast = (message: string, type?: ToastType) => void
 
-export function ToastProvider({ children }) {
-  const [toasts, setToasts] = useState([])
+const ToastCtx = createContext<AddToast | null>(null)
 
-  const addToast = useCallback((message, type = 'success') => {
+export function ToastProvider({ children }: { children: ReactNode }) {
+  const [toasts, setToasts] = useState<{ id: number; message: string; type: ToastType }[]>([])
+
+  const addToast = useCallback<AddToast>((message, type = 'success') => {
     const id = Date.now() + Math.random()
     setToasts(t => [...t, { id, message, type }])
     setTimeout(() => setToasts(t => t.filter(x => x.id !== id)), 3800)
@@ -30,20 +34,20 @@ export function ToastProvider({ children }) {
   )
 }
 
-export function useToast() { return useContext(ToastCtx) }
+export function useToast(): AddToast { return useContext(ToastCtx)! }
 
 // ─── Spinner ────────────────────────────────────────────────────────────────
-export function Spinner({ dark = false }) {
+export function Spinner({ dark = false }: { dark?: boolean }) {
   return <span className={`spinner${dark ? ' spinner-dark' : ''}`} />
 }
 
 // ─── Skill Chips ────────────────────────────────────────────────────────────
-export function SkillChip({ label, variant = 'blue' }) {
+export function SkillChip({ label, variant = 'blue' }: { label: string; variant?: string }) {
   return <span className={`chip chip-${variant}`}>{label}</span>
 }
 
 // ─── Badges ─────────────────────────────────────────────────────────────────
-export function Badge({ type, children }) {
+export function Badge({ type, children }: { type: string; children: ReactNode }) {
   return <span className={`badge badge-${type}`}>{children}</span>
 }
 
@@ -59,7 +63,7 @@ export function ProcessedBadge() {
 }
 
 // ─── Score Display ───────────────────────────────────────────────────────────
-export function ScoreDisplay({ value }) {
+export function ScoreDisplay({ value }: { value?: number | string | null }) {
   if (value == null || isNaN(Number(value))) return <span className="score score-na">—</span>
   const n = Number(value)
   const pct = (n * 100).toFixed(1)
@@ -68,7 +72,7 @@ export function ScoreDisplay({ value }) {
 }
 
 // ─── Empty State ─────────────────────────────────────────────────────────────
-export function EmptyState({ title, description }) {
+export function EmptyState({ title, description }: { title: string; description?: string }) {
   return (
     <div className="empty-state">
       <div className="empty-state-icon">
@@ -85,7 +89,7 @@ export function EmptyState({ title, description }) {
 }
 
 // ─── Skill Row ───────────────────────────────────────────────────────────────
-export function SkillRow({ label, skills, variant }) {
+export function SkillRow({ label, skills, variant }: { label: string; skills?: string[]; variant?: string }) {
   if (!skills || skills.length === 0) return null
   return (
     <div className="skill-row">
@@ -98,7 +102,7 @@ export function SkillRow({ label, skills, variant }) {
 }
 
 // ─── Icon Primitives ─────────────────────────────────────────────────────────
-export function SparkleIcon({ color = 'currentColor' }) {
+export function SparkleIcon({ color = 'currentColor' }: { color?: string }) {
   return (
     <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
       <path d="M6 1L7.5 4.5H11L8 6.5 9.2 10 6 8 2.8 10 4 6.5 1 4.5h3.5z"
@@ -107,7 +111,7 @@ export function SparkleIcon({ color = 'currentColor' }) {
   )
 }
 
-export function ChevronIcon({ expanded }) {
+export function ChevronIcon({ expanded }: { expanded: boolean }) {
   return (
     <svg width="13" height="13" viewBox="0 0 13 13" fill="none"
          style={{ transform: expanded ? 'rotate(180deg)' : 'none', transition: 'transform 0.18s ease', flexShrink: 0 }}>
@@ -186,7 +190,7 @@ const NAV_ITEMS = [
   },
 ]
 
-export function Sidebar({ page, setPage }) {
+export function Sidebar({ page, setPage }: { page: string; setPage: (page: string) => void }) {
   return (
     <aside className="sidebar">
       <div className="sidebar-logo">
