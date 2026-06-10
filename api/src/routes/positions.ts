@@ -1,9 +1,25 @@
 import express, { type Request, type Response } from 'express';
+import multer from 'multer';
+import path from 'path';
+import { unlink } from 'fs/promises';
 import type { CreatePositionRequest, UpdatePositionRequest } from '@openats/types';
 import Position from '../models/Position.js';
 import Match from '../models/Match.js';
 
 const router = express.Router();
+
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, 'uploads/'),
+  filename: (req, file, cb) => {
+    const unique = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
+    cb(null, `${unique}${path.extname(file.originalname)}`);
+  }
+});
+const upload = multer({ storage, fileFilter: (req, file, cb) => {
+  const allowed = ['application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
+  if (!allowed.includes(file.mimetype)) return cb(new Error('Only PDF or DOCX files allowed'));
+  cb(null, true);
+}});
 
 // POST /positions
 router.post('/', async (req: Request<{}, unknown, CreatePositionRequest>, res: Response) => {
@@ -44,11 +60,6 @@ router.put('/:id', async (req: Request<{ id: string }, unknown, UpdatePositionRe
 
     const { title, jobDescription, selectionProcessId } = req.body;
 
-    // A processed position whose job description changes has stale skills/embeddings.
-    if (position.processed && jobDescription !== undefined && jobDescription !== position.jobDescription) {
-      position.skillsStale = true;
-    }
-
     if (title !== undefined) position.title = title;
     if (jobDescription !== undefined) position.jobDescription = jobDescription;
     if (selectionProcessId !== undefined) position.selectionProcessId = selectionProcessId;
@@ -72,13 +83,43 @@ router.delete('/:id', async (req: Request<{ id: string }>, res: Response) => {
   }
 });
 
+// POST /positions/:id/upload — multipart PDF/DOCX upload of the job description file
+router.post('/:id/upload', upload.single('jobDescriptionFile'), async (req: Request<{ id: string }>, res: Response) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+
+    const position = await Position.findOne({ _id: req.params.id, tenantId: req.tenantId });
+    if (!position) return res.status(404).json({ error: 'Position not found' });
+
+    // A processed position whose job description file is replaced has stale skills/embeddings.
+    if (position.processed) {
+      position.skillsStale = true;
+    }
+    const previousFileUrl = position.jobDescriptionFileUrl;
+    position.jobDescriptionFileUrl = req.file.path;
+    position.jobDescriptionFileName = req.file.originalname;
+    await position.save();
+
+    // Replace the old file on disk so uploads don't accumulate orphaned copies.
+    if (previousFileUrl && previousFileUrl !== req.file.path) {
+      await unlink(previousFileUrl).catch(() => {});
+    }
+
+    res.json({ message: 'Job description uploaded', jobDescriptionFileUrl: req.file.path, position });
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
 // POST /positions/:id/process — stub for LLM extraction + embeddings
 router.post('/:id/process', async (req: Request<{ id: string }>, res: Response) => {
   try {
     const position = await Position.findOne({ _id: req.params.id, tenantId: req.tenantId });
     if (!position) return res.status(404).json({ error: 'Position not found' });
+    if (!position.jobDescriptionFileUrl) return res.status(400).json({ error: 'No job description file uploaded yet' });
 
-    // TODO: call LLM to extract skills from position.jobDescription
+    // TODO: run OCR/text-extraction on jobDescriptionFileUrl → extractedText
+    // TODO: call LLM to extract skills from extractedText
     // TODO: generate embeddings for hardSkillsRequired and softSkillsRequired
     // Stub: mark as processed with empty skills
     position.processed = true;

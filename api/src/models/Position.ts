@@ -13,6 +13,8 @@ const positionSchema = new Schema<PositionDocument>({
   selectionProcessId: { type: Schema.Types.ObjectId, ref: 'SelectionProcess' },
   title: String,
   jobDescription: String,
+  jobDescriptionFileUrl: String,
+  jobDescriptionFileName: String,
   hardSkillsRequired: [String],
   softSkillsRequired: [String],
   embeddingHS: [Number],

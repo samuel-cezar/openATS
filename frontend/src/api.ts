@@ -14,6 +14,7 @@ import type {
   UpdateCandidateRequest,
   UpdatePositionRequest,
   UploadCandidateResumeResponse,
+  UploadPositionJobDescriptionResponse,
 } from '@openats/types';
 
 // Some API responses expose `id` alongside Mongo's `_id`; UI code reads both.
@@ -134,6 +135,22 @@ export const api = {
     const result = await apiFetch<DeletedResponse>('DELETE', `/positions/${id}`);
     idCache.remove('positions', id);
     return result;
+  },
+  uploadPositionJobDescription: async (id: ObjectId, file: File): Promise<UploadPositionJobDescriptionResponse> => {
+    const form = new FormData();
+    form.append('jobDescriptionFile', file);
+    const res = await fetch(`${ATS_BASE}/positions/${id}/upload`, {
+      method: 'POST',
+      headers: { 'X-Tenant-Id': 'demo' },
+      body: form,
+    });
+    const text = await res.text();
+    if (!res.ok) {
+      let msg = `${res.status} ${res.statusText}`;
+      try { const j = JSON.parse(text); msg = j.message || j.error || msg; } catch {}
+      throw new Error(msg);
+    }
+    return (text ? JSON.parse(text) : {}) as UploadPositionJobDescriptionResponse;
   },
   processPosition: (id: ObjectId) => apiFetch<ProcessPositionResponse>('POST', `/positions/${id}/process`),
   getPositionRanking: (id: ObjectId) => apiFetch<RankingResponse>('GET', `/positions/${id}/ranking`),

@@ -31,6 +31,13 @@ export type UpdatePositionResponse = Position;
 // DELETE /api/v1/positions/:id
 export type DeletePositionResponse = DeletedResponse;
 
+// POST /api/v1/positions/:id/upload (multipart/form-data, field name "jobDescriptionFile")
+export interface UploadPositionJobDescriptionResponse {
+  message: string;
+  jobDescriptionFileUrl: string;
+  position: Position;
+}
+
 // POST /api/v1/positions/:id/process
 export interface ProcessPositionResponse {
   message: string;

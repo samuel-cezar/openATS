@@ -4,7 +4,7 @@ import { api } from '../api'
 import type { PositionRecord, ProcessRecord } from '../api'
 import {
   useToast, Spinner, ProcessedBadge, EmptyState, SkillRow,
-  SparkleIcon, ChevronIcon, PlusIcon,
+  SparkleIcon, ChevronIcon, PlusIcon, UploadIcon, FileIcon,
 } from '../components'
 
 export default function PositionsPage({ processes }: { processes: ProcessRecord[] }) {
@@ -17,7 +17,9 @@ export default function PositionsPage({ processes }: { processes: ProcessRecord[
   const [confirmingId, setConfirmingId] = useState<string | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [processingId, setProcessingId] = useState<string | null>(null)
+  const [uploadingId, setUploadingId] = useState<string | null>(null)
   const [expanded, setExpanded]   = useState<string | null>(null)
+  const [pendingFiles, setPendingFiles] = useState<Record<string, File>>({})
   const [form, setForm] = useState({ selectionProcessId: '', title: '', jobDescription: '' })
 
   useEffect(() => { load() }, [])
@@ -85,6 +87,20 @@ export default function PositionsPage({ processes }: { processes: ProcessRecord[
     finally { setDeletingId(null) }
   }
 
+  async function handleUpload(posId: string) {
+    const file = pendingFiles[posId]
+    if (!file) return
+    setUploadingId(posId)
+    try {
+      await api.uploadPositionJobDescription(posId, file)
+      setPendingFiles(pf => { const n = { ...pf }; delete n[posId]; return n })
+      toast('Job description uploaded')
+      const fresh = await api.getPosition(posId)
+      setPositions(ps => ps.map(p => (p.id || p._id) === posId ? fresh : p))
+    } catch (err: unknown) { toast(err instanceof Error ? err.message : String(err), 'error') }
+    finally { setUploadingId(null) }
+  }
+
   async function handleExtract(posId: string) {
     setProcessingId(posId)
     try {
@@ -113,6 +129,16 @@ export default function PositionsPage({ processes }: { processes: ProcessRecord[
     const s = (pos.softSkillsRequired  || []).length
     if (!h && !s) return null
     return `${h + s} skill${h + s !== 1 ? 's' : ''}`
+  }
+
+  function jdFileName(pos: PositionRecord) {
+    if (pos.jobDescriptionFileName) return pos.jobDescriptionFileName
+    if (!pos.jobDescriptionFileUrl) return null
+    return pos.jobDescriptionFileUrl.split('/').pop() || pos.jobDescriptionFileUrl
+  }
+
+  function truncateName(name: string, max = 20) {
+    return name.length > max ? name.slice(0, max - 3) + '…' : name
   }
 
   return (
@@ -162,14 +188,13 @@ export default function PositionsPage({ processes }: { processes: ProcessRecord[
             </div>
             <div className="form-row">
               <div className="form-group">
-                <label className="form-label">Job Description *</label>
+                <label className="form-label">Description</label>
                 <textarea
                   className="form-input form-textarea"
                   style={{ minHeight: 110 }}
                   value={form.jobDescription}
                   onChange={e => setForm(f => ({ ...f, jobDescription: e.target.value }))}
-                  placeholder="Paste the full job description here — the AI will extract required skills from this text."
-                  required
+                  placeholder="Optional notes about this position, for your reference."
                 />
               </div>
             </div>
@@ -193,7 +218,7 @@ export default function PositionsPage({ processes }: { processes: ProcessRecord[
         ) : positions.length === 0 ? (
           <EmptyState
             title="No positions yet"
-            description="Create a position and extract its required skills using AI."
+            description="Create a position, upload its job description file, then extract required skills using AI."
           />
         ) : (
           positions.map((pos, i) => {
@@ -201,6 +226,9 @@ export default function PositionsPage({ processes }: { processes: ProcessRecord[
             const processed    = isProcessed(pos)
             const isExpanded   = expanded === id
             const isExtracting = processingId === id
+            const isUploading  = uploadingId === id
+            const pendingFile  = pendingFiles[id]
+            const currentFile  = jdFileName(pos)
             const count        = skillCount(pos)
 
             return (
@@ -234,16 +262,51 @@ export default function PositionsPage({ processes }: { processes: ProcessRecord[
                     ) : (
                       <>
                         {!processed && (
-                          <button
-                            className="btn btn-secondary btn-sm"
-                            disabled={isExtracting}
-                            onClick={() => handleExtract(id)}
-                          >
-                            {isExtracting
-                              ? <><Spinner dark /> Extracting…</>
-                              : <><SparkleIcon /> Extract Skills</>
-                            }
-                          </button>
+                          <>
+                            {currentFile && !pendingFile && (
+                              <span className="file-chip" title={currentFile}>
+                                <FileIcon /> {truncateName(currentFile)}
+                              </span>
+                            )}
+                            <label className="file-btn">
+                              <UploadIcon />
+                              {pendingFile
+                                ? <span className="file-name-label">{truncateName(pendingFile.name)}</span>
+                                : <span>{currentFile ? 'Replace JD File' : 'JD File'}</span>
+                              }
+                              <input
+                                type="file"
+                                accept=".pdf,.docx"
+                                style={{ display: 'none' }}
+                                onChange={e => {
+                                  const f = e.target.files?.[0]
+                                  if (f) setPendingFiles(pf => ({ ...pf, [id]: f }))
+                                  e.target.value = ''
+                                }}
+                              />
+                            </label>
+
+                            {pendingFile && (
+                              <button
+                                className="btn btn-secondary btn-sm"
+                                disabled={isUploading}
+                                onClick={() => handleUpload(id)}
+                              >
+                                {isUploading ? <><Spinner dark /> Uploading…</> : 'Upload'}
+                              </button>
+                            )}
+
+                            <button
+                              className="btn btn-secondary btn-sm"
+                              disabled={isExtracting}
+                              onClick={() => handleExtract(id)}
+                            >
+                              {isExtracting
+                                ? <><Spinner dark /> Extracting…</>
+                                : <><SparkleIcon /> Extract Skills</>
+                              }
+                            </button>
+                          </>
                         )}
                         <button className="btn btn-ghost btn-sm" onClick={() => startEdit(pos)}>Edit</button>
                         <button className="btn btn-danger btn-sm" onClick={() => setConfirmingId(id)}>Delete</button>
@@ -259,7 +322,7 @@ export default function PositionsPage({ processes }: { processes: ProcessRecord[
                     {processed && pos.skillsStale && (
                       <div className="outdated-banner">
                         <span className="outdated-banner-text">
-                          Skills are outdated — the job description changed since extraction.
+                          Skills are outdated — the job description file changed since extraction.
                         </span>
                         <button
                           className="btn btn-secondary btn-sm"
@@ -280,12 +343,15 @@ export default function PositionsPage({ processes }: { processes: ProcessRecord[
                       </>
                     ) : (
                       <div className="expanded-hint">
-                        No skills extracted yet. Use <strong>Extract Skills</strong> to run the AI pipeline.
+                        {currentFile
+                          ? <>Job description file uploaded: <strong>{currentFile}</strong>. No skills extracted yet — use <strong>Extract Skills</strong> to run the AI pipeline.</>
+                          : <>Upload a job description file (PDF or DOCX), then use <strong>Extract Skills</strong> to run the AI pipeline.</>
+                        }
                       </div>
                     )}
                     {pos.jobDescription && (
                       <div className="jd-preview">
-                        <span className="skill-section-label">JD</span>
+                        <span className="skill-section-label">Description</span>
                         <p className="jd-text">{pos.jobDescription}</p>
                       </div>
                     )}

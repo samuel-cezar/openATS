@@ -1,9 +1,10 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Fragment } from 'react'
 import type { Dispatch, FormEvent, SetStateAction } from 'react'
 import { api } from '../api'
-import type { ProcessPayload, ProcessRecord } from '../api'
+import type { ProcessPayload, ProcessRecord, PositionRecord } from '../api'
 import {
   useToast, Spinner, Badge, EmptyState, PlusIcon,
+  ProcessedBadge, ChevronIcon,
 } from '../components'
 
 export default function ProcessesPage({ processes, setProcesses }: {
@@ -18,11 +19,20 @@ export default function ProcessesPage({ processes, setProcesses }: {
   const [confirmingId, setConfirmingId] = useState<string | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [form, setForm] = useState({ name: '', description: '', startDate: '', endDate: '' })
+  const [positions, setPositions] = useState<PositionRecord[]>([])
+  const [positionsLoading, setPositionsLoading] = useState(true)
+  const [expandedId, setExpandedId] = useState<string | null>(null)
 
   useEffect(() => {
     api.getProcesses()
       .then(data => { setProcesses(data); setLoading(false) })
       .catch(e => { toast(e.message, 'error'); setLoading(false) })
+  }, [])
+
+  useEffect(() => {
+    api.getPositions()
+      .then(data => { setPositions(data); setPositionsLoading(false) })
+      .catch(e => { toast(e.message, 'error'); setPositionsLoading(false) })
   }, [])
 
   useEffect(() => {
@@ -88,6 +98,7 @@ export default function ProcessesPage({ processes, setProcesses }: {
       await api.deleteProcess(id)
       setProcesses(ps => ps.filter(p => (p.id || p._id) !== id))
       setConfirmingId(null)
+      setExpandedId(eid => eid === id ? null : eid)
       toast('Selection process deleted')
     } catch (err: unknown) { toast(err instanceof Error ? err.message : String(err), 'error') }
     finally { setDeletingId(null) }
@@ -106,6 +117,16 @@ export default function ProcessesPage({ processes, setProcesses }: {
     if (start && start > now) return <Badge type="pending">Upcoming</Badge>
     if (!end || end >= now)   return <Badge type="success">Active</Badge>
     return <Badge type="muted">Closed</Badge>
+  }
+
+  function isProcessed(pos: PositionRecord) {
+    return pos.processed ||
+      (pos.hardSkillsRequired && pos.hardSkillsRequired.length > 0) ||
+      (pos.softSkillsRequired  && pos.softSkillsRequired.length  > 0)
+  }
+
+  function positionsForProcess(id: string) {
+    return positions.filter(pos => pos.selectionProcessId === id)
   }
 
   return (
@@ -208,7 +229,8 @@ export default function ProcessesPage({ processes, setProcesses }: {
               {processes.map(p => {
                 const id = p.id || p._id
                 return (
-                <tr key={id}>
+                <Fragment key={id}>
+                <tr>
                   <td className="cell-bold">{p.name}</td>
                   <td>
                     <div className="cell-truncate cell-secondary">{p.description || '—'}</div>
@@ -231,6 +253,9 @@ export default function ProcessesPage({ processes, setProcesses }: {
                         </span>
                       ) : (
                         <>
+                          <button className="btn btn-ghost btn-sm" onClick={() => setExpandedId(expandedId === id ? null : id)}>
+                            View <ChevronIcon expanded={expandedId === id} />
+                          </button>
                           <button className="btn btn-ghost btn-sm" onClick={() => startEdit(p)}>Edit</button>
                           <button className="btn btn-danger btn-sm" onClick={() => setConfirmingId(id)}>Delete</button>
                         </>
@@ -238,6 +263,27 @@ export default function ProcessesPage({ processes, setProcesses }: {
                     </div>
                   </td>
                 </tr>
+                {expandedId === id && (
+                  <tr>
+                    <td colSpan={6} style={{ padding: 0 }}>
+                      <div className="row-expanded">
+                        {positionsLoading ? (
+                          <div className="expanded-hint"><Spinner dark /> Loading positions…</div>
+                        ) : positionsForProcess(id).length === 0 ? (
+                          <div className="expanded-hint">No positions in this selection process yet.</div>
+                        ) : (
+                          positionsForProcess(id).map(pos => (
+                            <div className="skill-row" key={pos.id || pos._id} style={{ alignItems: 'center' }}>
+                              <span className="cell-bold">{pos.title}</span>
+                              {isProcessed(pos) && <ProcessedBadge />}
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                )}
+                </Fragment>
                 )
               })}
             </tbody>

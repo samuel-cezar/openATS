@@ -13,6 +13,7 @@ const candidateSchema = new Schema<CandidateDocument>({
   name: String,
   email: String,
   resumePdfUrl: String,
+  resumeFileName: String,
   extractedText: String,
   hardSkills: [String],
   softSkills: [String],

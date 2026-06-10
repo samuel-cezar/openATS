@@ -4,7 +4,7 @@ import { api } from '../api'
 import type { CandidateRecord } from '../api'
 import {
   useToast, Spinner, ProcessedBadge, EmptyState, SkillRow,
-  SparkleIcon, ChevronIcon, PlusIcon, UploadIcon,
+  SparkleIcon, ChevronIcon, PlusIcon, UploadIcon, FileIcon,
 } from '../components'
 
 export default function CandidatesPage() {
@@ -127,6 +127,16 @@ export default function CandidatesPage() {
     return h % 360
   }
 
+  function resumeFileName(c: CandidateRecord) {
+    if (c.resumeFileName) return c.resumeFileName
+    if (!c.resumePdfUrl) return null
+    return c.resumePdfUrl.split('/').pop() || c.resumePdfUrl
+  }
+
+  function truncateName(name: string, max = 20) {
+    return name.length > max ? name.slice(0, max - 3) + '…' : name
+  }
+
   return (
     <div className="page">
       <div className="page-header">
@@ -199,6 +209,7 @@ export default function CandidatesPage() {
             const isUploading  = uploadingId  === cId
             const isProcessing = processingId === cId
             const pendingFile  = pendingFiles[cId]
+            const currentFile  = resumeFileName(c)
             const hue = avatarHue(c.name)
 
             return (
@@ -244,15 +255,16 @@ export default function CandidatesPage() {
                       <>
                         {!processed && (
                           <>
+                            {currentFile && !pendingFile && (
+                              <span className="file-chip" title={currentFile}>
+                                <FileIcon /> {truncateName(currentFile)}
+                              </span>
+                            )}
                             <label className="file-btn">
                               <UploadIcon />
                               {pendingFile
-                                ? <span className="file-name-label">
-                                    {pendingFile.name.length > 20
-                                      ? pendingFile.name.slice(0, 17) + '…'
-                                      : pendingFile.name}
-                                  </span>
-                                : <span>Resume PDF</span>
+                                ? <span className="file-name-label">{truncateName(pendingFile.name)}</span>
+                                : <span>{currentFile ? 'Replace Resume' : 'Resume PDF'}</span>
                               }
                               <input
                                 type="file"
@@ -332,7 +344,10 @@ export default function CandidatesPage() {
                       </>
                     ) : (
                       <div className="expanded-hint">
-                        Upload a resume PDF, then click <strong>Process</strong> to extract skills.
+                        {currentFile
+                          ? <>Resume uploaded: <strong>{currentFile}</strong>. No skills extracted yet — click <strong>Process</strong> to extract skills.</>
+                          : <>Upload a resume PDF, then click <strong>Process</strong> to extract skills.</>
+                        }
                       </div>
                     )}
                   </div>

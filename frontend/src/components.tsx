@@ -146,6 +146,16 @@ export function UploadIcon() {
   )
 }
 
+export function FileIcon() {
+  return (
+    <svg width="11" height="11" viewBox="0 0 11 11" fill="none">
+      <path d="M2 .5h4l2.5 2.5V10a.5.5 0 01-.5.5h-6A.5.5 0 011.5 10V1A.5.5 0 012 .5z"
+            stroke="currentColor" strokeWidth="1.1" strokeLinejoin="round"/>
+      <path d="M6 .5V3h2.5" stroke="currentColor" strokeWidth="1.1" strokeLinejoin="round"/>
+    </svg>
+  )
+}
+
 // ─── Sidebar ─────────────────────────────────────────────────────────────────
 const NAV_ITEMS = [
   {

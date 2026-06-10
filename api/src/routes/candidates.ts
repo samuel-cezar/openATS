@@ -1,6 +1,7 @@
 import express, { type Request, type Response } from 'express';
 import multer from 'multer';
 import path from 'path';
+import { unlink } from 'fs/promises';
 import type { CreateCandidateRequest, UpdateCandidateRequest } from '@openats/types';
 import Candidate from '../models/Candidate.js';
 import Match from '../models/Match.js';
@@ -29,16 +30,28 @@ router.post('/', async (req: Request<{}, unknown, CreateCandidateRequest>, res: 
   }
 });
 
-// POST /candidates/:id/upload — multipart PDF upload
+// POST /candidates/:id/upload — multipart PDF upload of the resume file
 router.post('/:id/upload', upload.single('resume'), async (req: Request<{ id: string }>, res: Response) => {
   try {
     if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
-    const candidate = await Candidate.findOneAndUpdate(
-      { _id: req.params.id, tenantId: req.tenantId },
-      { resumePdfUrl: req.file.path },
-      { new: true }
-    );
+
+    const candidate = await Candidate.findOne({ _id: req.params.id, tenantId: req.tenantId });
     if (!candidate) return res.status(404).json({ error: 'Candidate not found' });
+
+    // A processed candidate whose resume is replaced has stale skills/embeddings.
+    if (candidate.processed) {
+      candidate.skillsStale = true;
+    }
+    const previousFileUrl = candidate.resumePdfUrl;
+    candidate.resumePdfUrl = req.file.path;
+    candidate.resumeFileName = req.file.originalname;
+    await candidate.save();
+
+    // Replace the old file on disk so uploads don't accumulate orphaned copies.
+    if (previousFileUrl && previousFileUrl !== req.file.path) {
+      await unlink(previousFileUrl).catch(() => {});
+    }
+
     res.json({ message: 'Resume uploaded', resumePdfUrl: req.file.path, candidate });
   } catch (err: unknown) {
     res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
