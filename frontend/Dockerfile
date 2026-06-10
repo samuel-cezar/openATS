@@ -10,7 +10,7 @@ RUN pnpm install --frozen-lockfile
 COPY . .
 RUN pnpm --filter openats-frontend build
 
-FROM nginx:alpine
+FROM nginx:1.31.1-alpine3.23-slim
 COPY --from=builder /repo/frontend/dist /usr/share/nginx/html
 COPY frontend/nginx.conf /etc/nginx/conf.d/default.conf
 EXPOSE 80
