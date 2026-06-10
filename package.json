@@ -1,0 +1,11 @@
+{
+  "name": "openats",
+  "version": "0.0.1",
+  "private": true,
+  "scripts": {
+    "dev:api": "pnpm --filter recruitment-api dev",
+    "dev:frontend": "pnpm --filter openats-frontend dev",
+    "typecheck": "pnpm --filter @openats/types typecheck && pnpm --filter recruitment-api typecheck",
+    "build": "pnpm --filter openats-frontend build"
+  }
+}

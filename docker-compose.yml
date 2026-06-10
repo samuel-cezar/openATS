@@ -12,7 +12,9 @@ services:
       - mongo-data:/data/db
 
   api:
-    build: ./api
+    build:
+      context: .
+      dockerfile: api/Dockerfile
     container_name: recruitment-api
     restart: unless-stopped
     ports:
@@ -28,7 +30,9 @@ services:
       - ./api/uploads:/app/uploads
 
   frontend:
-    build: ./frontend
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
     container_name: recruitment-frontend
     restart: unless-stopped
     ports:

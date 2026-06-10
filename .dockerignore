@@ -1,0 +1,7 @@
+**/node_modules
+.git
+**/dist
+*.md
+api/uploads
+api/.env
+**/.DS_Store
