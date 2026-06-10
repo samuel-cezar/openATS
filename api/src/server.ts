@@ -4,11 +4,11 @@ import mongoose from 'mongoose';
 import cors from 'cors';
 
 import tenantsRouter from './routes/tenants.js';
-// import usersRouter from './routes/users.js';
-// import selectionProcessesRouter from './routes/selectionProcesses.js';
-// import positionsRouter from './routes/positions.js';
-// import candidatesRouter from './routes/candidates.js';
-// import matchesRouter from './routes/matches.js';
+import usersRouter from './routes/users.js';
+import selectionProcessesRouter from './routes/selectionProcesses.js';
+import positionsRouter from './routes/positions.js';
+import candidatesRouter from './routes/candidates.js';
+import matchesRouter from './routes/matches.js';
 
 const app = express();
 app.use(cors());
@@ -27,11 +27,11 @@ app.use((req: Request, res: Response, next: NextFunction) => {
 });
 
 app.use('/api/v1/tenants', tenantsRouter);
-// app.use('/api/v1/users', usersRouter);
-// app.use('/api/v1/selection-processes', selectionProcessesRouter);
-// app.use('/api/v1/positions', positionsRouter);
-// app.use('/api/v1/candidates', candidatesRouter);
-// app.use('/api/v1/matches', matchesRouter);
+app.use('/api/v1/users', usersRouter);
+app.use('/api/v1/selection-processes', selectionProcessesRouter);
+app.use('/api/v1/positions', positionsRouter);
+app.use('/api/v1/candidates', candidatesRouter);
+app.use('/api/v1/matches', matchesRouter);
 
 const mongoUri = process.env.MONGO_URI;
 if (!mongoUri) {

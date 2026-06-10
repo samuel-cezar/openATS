@@ -1,12 +1,13 @@
-const express = require('express');
+import express, { type Request, type Response } from 'express';
+import Tenant from '../models/Tenant.js';
+import Candidate from '../models/Candidate.js';
+import Match, { type MatchDocument } from '../models/Match.js';
+import { computeMatch } from '../helpers/similarity.js';
+
 const router = express.Router();
-const Tenant = require('../models/Tenant');
-const Candidate = require('../models/Candidate');
-const Match = require('../models/Match');
-const { computeMatch } = require('../helpers/similarity');
 
 // POST /matches/position/:positionId — compute/update matches for all candidates
-router.post('/position/:positionId', async (req, res) => {
+router.post('/position/:positionId', async (req: Request<{ positionId: string }>, res: Response) => {
   try {
     const tenant = await Tenant.findById(req.tenantId);
     if (!tenant) return res.status(404).json({ error: 'Tenant not found' });
@@ -16,7 +17,7 @@ router.post('/position/:positionId', async (req, res) => {
       processed: true
     });
 
-    const results = [];
+    const results: MatchDocument[] = [];
     for (const cand of candidates) {
       const scores = await computeMatch(cand._id, req.params.positionId, tenant);
       const match = await Match.findOneAndUpdate(
@@ -47,9 +48,9 @@ router.post('/position/:positionId', async (req, res) => {
     }
 
     res.json({ computed: results.length, matches: sorted });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
   }
 });
 
-module.exports = router;
+export default router;
