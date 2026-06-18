@@ -53,6 +53,7 @@ services:
       TEXT_SERVICE_URL: http://text:8080
       RAG_SERVICE_URL: http://rag:8080
       EMBEDDINGS_SERVICE_URL: http://embeddings:8080
+      MATCHING_SERVICE_URL: http://matching:8080
 
   text:
     build:
@@ -88,6 +89,16 @@ services:
     environment:
       MONGO_URI: mongodb://admin:secret123@mongodb:27017/recruitment?authSource=admin
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+
+  matching:
+    build:
+      context: ./services/5_matching
+    container_name: recruitment-matching
+    restart: unless-stopped
+    depends_on:
+      - mongodb
+    environment:
+      MONGO_URI: mongodb://admin:secret123@mongodb:27017/recruitment?authSource=admin
 
 volumes:
   mongo-data:

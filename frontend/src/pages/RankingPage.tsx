@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { api } from '../api'
-import type { PositionRecord, ProcessRecord, RankingEntry } from '../api'
+import type { PositionRecord, PositionRankingEntry, ProcessRecord } from '../api'
 import {
   useToast, Spinner, ScoreDisplay, EmptyState,
   SparkleIcon, RefreshIcon,
@@ -10,7 +10,7 @@ export default function RankingPage({ processes }: { processes: ProcessRecord[] 
   const toast = useToast()
   const [positions, setPositions]   = useState<PositionRecord[]>([])
   const [selectedId, setSelectedId] = useState('')
-  const [ranking, setRanking]       = useState<RankingEntry[] | null>(null)
+  const [ranking, setRanking]       = useState<PositionRankingEntry[] | null>(null)
   const [computing, setComputing]   = useState(false)
   const [loadingRanking, setLoadingRanking] = useState(false)
 
@@ -27,15 +27,9 @@ export default function RankingPage({ processes }: { processes: ProcessRecord[] 
   async function fetchRanking() {
     setLoadingRanking(true)
     try {
-      const data = await api.getPositionRanking(selectedId)
-      const list = Array.isArray(data) ? data
-        : (data.ranking || data.data || data.results || [])
-      setRanking(list)
+      setRanking(await api.getPositionRanking(selectedId))
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err)
-      if (!msg.includes('404') && !msg.includes('Not Found')) {
-        toast(msg, 'error')
-      }
+      toast(err instanceof Error ? err.message : String(err), 'error')
       setRanking([])
     } finally { setLoadingRanking(false) }
   }
@@ -135,34 +129,32 @@ export default function RankingPage({ processes }: { processes: ProcessRecord[] 
             </thead>
             <tbody>
               {ranking.map((entry, i) => {
-                const rank = entry.rank != null ? Number(entry.rank) : i + 1
-                const totalScore = entry.totalScore ?? entry.score ?? entry.total
-                const hardScore  = entry.hardScore  ?? entry.hardSkillScore  ?? entry.hard
-                const softScore  = entry.softScore  ?? entry.softSkillScore  ?? entry.soft
-                const name = entry.candidateName || entry.name || entry.candidate?.name || '—'
-                const email = entry.email || entry.candidate?.email
+                const rank = entry.rank ?? i + 1
+                // candidateId is populated to {_id, name, email}; a stale match
+                // whose candidate was deleted populates to null.
+                const candidate = entry.candidateId as PositionRankingEntry['candidateId'] | null
 
                 return (
-                  <tr key={String(entry.candidateId || entry.id || i)}>
+                  <tr key={candidate?._id ?? entry._id}>
                     <td>
                       <div className={`rank-badge ${rankStyle(rank)}`}>{rank}</div>
                     </td>
                     <td>
-                      <div className="cell-bold">{name}</div>
-                      {email && (
+                      <div className="cell-bold">{candidate?.name || '—'}</div>
+                      {candidate?.email && (
                         <div className="cell-mono cell-muted" style={{ fontSize: '11.5px', marginTop: 1 }}>
-                          {email}
+                          {candidate.email}
                         </div>
                       )}
                     </td>
                     <td style={{ textAlign: 'right', paddingRight: 20 }}>
-                      <ScoreDisplay value={totalScore} />
+                      <ScoreDisplay value={entry.totalScore} />
                     </td>
                     <td style={{ textAlign: 'right', paddingRight: 20 }}>
-                      <ScoreDisplay value={hardScore} />
+                      <ScoreDisplay value={entry.hardScore} />
                     </td>
                     <td style={{ textAlign: 'right', paddingRight: 24 }}>
-                      <ScoreDisplay value={softScore} />
+                      <ScoreDisplay value={entry.softScore} />
                     </td>
                   </tr>
                 )

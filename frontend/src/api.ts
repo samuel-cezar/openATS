@@ -5,6 +5,7 @@ import type {
   CreatePositionRequest,
   CreateSelectionProcessRequest,
   DeletedResponse,
+  GetPositionRankingResponse,
   ISODateString,
   ObjectId,
   Position,
@@ -29,28 +30,9 @@ export type ProcessPayload = Omit<CreateSelectionProcessRequest, 'startDate' | '
   endDate?: ISODateString | null;
 };
 
-// RankingPage tolerates several legacy field aliases for scores and candidate info.
-export interface RankingEntry {
-  candidateId?: ObjectId | Pick<Candidate, '_id' | 'name' | 'email'>;
-  id?: ObjectId;
-  rank?: number;
-  totalScore?: number;
-  score?: number;
-  total?: number;
-  hardScore?: number;
-  hardSkillScore?: number;
-  hard?: number;
-  softScore?: number;
-  softSkillScore?: number;
-  soft?: number;
-  candidateName?: string;
-  name?: string;
-  email?: string;
-  candidate?: { name?: string; email?: string };
-}
-export type RankingResponse =
-  | RankingEntry[]
-  | { ranking?: RankingEntry[]; data?: RankingEntry[]; results?: RankingEntry[] };
+// GET /positions/:id/ranking returns Match docs with candidateId populated
+// to {_id, name, email}; RankingPage renders these directly.
+export type { PositionRankingEntry } from '@openats/types';
 
 const ATS_BASE = 'http://localhost:3000/api/v1';
 const ATS_HEADERS = {
@@ -153,7 +135,7 @@ export const api = {
     return (text ? JSON.parse(text) : {}) as UploadPositionJobDescriptionResponse;
   },
   processPosition: (id: ObjectId) => apiFetch<ProcessPositionResponse>('POST', `/positions/${id}/process`),
-  getPositionRanking: (id: ObjectId) => apiFetch<RankingResponse>('GET', `/positions/${id}/ranking`),
+  getPositionRanking: (id: ObjectId) => apiFetch<GetPositionRankingResponse>('GET', `/positions/${id}/ranking`),
 
   // ── Candidates ───────────────────────────────────────
   getCandidates: async (): Promise<CandidateRecord[]> => {
