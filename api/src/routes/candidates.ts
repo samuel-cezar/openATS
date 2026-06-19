@@ -5,6 +5,7 @@ import { unlink } from 'fs/promises';
 import type { CreateCandidateRequest, UpdateCandidateRequest } from '@openats/types';
 import Candidate from '../models/Candidate.js';
 import Match from '../models/Match.js';
+import ProcessingJob from '../models/ProcessingJob.js';
 
 const router = express.Router();
 
@@ -58,21 +59,31 @@ router.post('/:id/upload', upload.single('resume'), async (req: Request<{ id: st
   }
 });
 
-// POST /candidates/:id/process — stub for OCR → RAG → embeddings
+// POST /candidates/:id/process — enqueue a pending pipeline job (OCR → RAG → embeddings → matching)
 router.post('/:id/process', async (req: Request<{ id: string }>, res: Response) => {
   try {
     const candidate = await Candidate.findOne({ _id: req.params.id, tenantId: req.tenantId });
     if (!candidate) return res.status(404).json({ error: 'Candidate not found' });
     if (!candidate.resumePdfUrl) return res.status(400).json({ error: 'No resume uploaded yet' });
 
-    // TODO: run OCR on resumePdfUrl → extractedText
-    // TODO: run RAG skill extraction → hardSkills, softSkills
-    // TODO: generate embeddings → embeddingHS, embeddingSS
-    candidate.processed = true;
-    candidate.skillsStale = false;
-    await candidate.save();
+    // Avoid piling up duplicate jobs if Process is clicked while a run is in flight.
+    const active = await ProcessingJob.findOne({
+      tenantId: req.tenantId,
+      entityType: 'candidate',
+      entityId: candidate._id,
+      status: { $in: ['pending', 'running'] },
+    });
+    if (active) return res.status(409).json({ error: 'Already queued or processing' });
 
-    res.json({ message: 'Processing triggered (stub)', candidate });
+    // Record a pending job and return immediately; the monitor runs the pipeline
+    // and sets processed/skillsStale on completion.
+    await ProcessingJob.create({
+      tenantId: req.tenantId,
+      entityType: 'candidate',
+      entityId: candidate._id,
+    });
+
+    res.status(202).json({ message: 'Processing queued', candidate });
   } catch (err: unknown) {
     res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
   }
@@ -121,8 +132,10 @@ router.put('/:id', async (req: Request<{ id: string }, unknown, UpdateCandidateR
 // DELETE /candidates/:id — also clears its match results
 router.delete('/:id', async (req: Request<{ id: string }>, res: Response) => {
   try {
-    const candidate = await Candidate.findOneAndDelete({ _id: req.params.id, tenantId: req.tenantId });
+    const candidate = await Candidate.findOne({ _id: req.params.id, tenantId: req.tenantId });
     if (!candidate) return res.status(404).json({ error: 'Candidate not found' });
+    await candidate.deleteOne();
+    if (candidate.resumePdfUrl) await unlink(candidate.resumePdfUrl).catch(() => {});
     await Match.deleteMany({ candidateId: req.params.id, tenantId: req.tenantId });
     res.json({ deleted: true });
   } catch (err: unknown) {

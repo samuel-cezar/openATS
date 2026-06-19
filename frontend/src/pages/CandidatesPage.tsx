@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import type { FormEvent } from 'react'
 import { api } from '../api'
 import type { CandidateRecord } from '../api'
@@ -21,12 +21,18 @@ export default function CandidatesPage() {
   const [expanded, setExpanded]     = useState<string | null>(null)
   const [pendingFiles, setPendingFiles] = useState<Record<string, File>>({})
   const [form, setForm] = useState({ name: '', email: '' })
+  // Pending poll timers keyed by candidate id, so we can cancel them on unmount.
+  const pollTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
 
   useEffect(() => { load() }, [])
   useEffect(() => {
     const h = (e: KeyboardEvent) => { if (e.key === 'Escape') closeForm() }
     window.addEventListener('keydown', h)
     return () => window.removeEventListener('keydown', h)
+  }, [])
+  // Clear any in-flight processing polls when the page unmounts.
+  useEffect(() => () => {
+    Object.values(pollTimers.current).forEach(clearTimeout)
   }, [])
 
   async function load() {
@@ -101,12 +107,32 @@ export default function CandidatesPage() {
     setProcessingId(cId)
     try {
       await api.processCandidate(cId)
-      const fresh = await api.getCandidate(cId)
-      setCandidates(cs => cs.map(c => (c.id || c._id) === cId ? fresh : c))
       setExpanded(cId)
-      toast('Candidate processed')
-    } catch (err: unknown) { toast(err instanceof Error ? err.message : String(err), 'error') }
-    finally { setProcessingId(null) }
+      toast('Processing started — extracting skills…')
+      // Processing is async on the server; poll until the candidate flips to processed.
+      pollUntilProcessed(cId)
+    } catch (err: unknown) {
+      toast(err instanceof Error ? err.message : String(err), 'error')
+      setProcessingId(null)
+    }
+  }
+
+  // Re-fetch the candidate every 30s until processing completes, keeping the
+  // row's "Processing…" state until then.
+  function pollUntilProcessed(cId: string) {
+    pollTimers.current[cId] = setTimeout(async () => {
+      try {
+        const fresh = await api.getCandidate(cId)
+        setCandidates(cs => cs.map(c => (c.id || c._id) === cId ? fresh : c))
+        if (isProcessed(fresh) && !fresh.skillsStale) {
+          delete pollTimers.current[cId]
+          setProcessingId(p => (p === cId ? null : p))
+          toast('Candidate processed')
+          return
+        }
+      } catch { /* transient fetch error — keep polling */ }
+      pollUntilProcessed(cId)
+    }, 30000)
   }
 
   function isProcessed(c: CandidateRecord) {

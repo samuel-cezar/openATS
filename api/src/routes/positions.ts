@@ -5,6 +5,7 @@ import { unlink } from 'fs/promises';
 import type { CreatePositionRequest, UpdatePositionRequest } from '@openats/types';
 import Position from '../models/Position.js';
 import Match from '../models/Match.js';
+import ProcessingJob from '../models/ProcessingJob.js';
 
 const router = express.Router();
 
@@ -74,8 +75,10 @@ router.put('/:id', async (req: Request<{ id: string }, unknown, UpdatePositionRe
 // DELETE /positions/:id — also clears its rankings
 router.delete('/:id', async (req: Request<{ id: string }>, res: Response) => {
   try {
-    const position = await Position.findOneAndDelete({ _id: req.params.id, tenantId: req.tenantId });
+    const position = await Position.findOne({ _id: req.params.id, tenantId: req.tenantId });
     if (!position) return res.status(404).json({ error: 'Position not found' });
+    await position.deleteOne();
+    if (position.jobDescriptionFileUrl) await unlink(position.jobDescriptionFileUrl).catch(() => {});
     await Match.deleteMany({ positionId: req.params.id, tenantId: req.tenantId });
     res.json({ deleted: true });
   } catch (err: unknown) {
@@ -111,22 +114,31 @@ router.post('/:id/upload', upload.single('jobDescriptionFile'), async (req: Requ
   }
 });
 
-// POST /positions/:id/process — stub for LLM extraction + embeddings
+// POST /positions/:id/process — enqueue a pending pipeline job (text extraction → LLM skills → embeddings → matching)
 router.post('/:id/process', async (req: Request<{ id: string }>, res: Response) => {
   try {
     const position = await Position.findOne({ _id: req.params.id, tenantId: req.tenantId });
     if (!position) return res.status(404).json({ error: 'Position not found' });
     if (!position.jobDescriptionFileUrl) return res.status(400).json({ error: 'No job description file uploaded yet' });
 
-    // TODO: run OCR/text-extraction on jobDescriptionFileUrl → extractedText
-    // TODO: call LLM to extract skills from extractedText
-    // TODO: generate embeddings for hardSkillsRequired and softSkillsRequired
-    // Stub: mark as processed with empty skills
-    position.processed = true;
-    position.skillsStale = false;
-    await position.save();
+    // Avoid piling up duplicate jobs if Extract Skills is clicked while a run is in flight.
+    const active = await ProcessingJob.findOne({
+      tenantId: req.tenantId,
+      entityType: 'position',
+      entityId: position._id,
+      status: { $in: ['pending', 'running'] },
+    });
+    if (active) return res.status(409).json({ error: 'Already queued or processing' });
 
-    res.json({ message: 'Processing triggered (stub)', position });
+    // Record a pending job and return immediately; the monitor runs the pipeline
+    // and sets processed/skillsStale on completion.
+    await ProcessingJob.create({
+      tenantId: req.tenantId,
+      entityType: 'position',
+      entityId: position._id,
+    });
+
+    res.status(202).json({ message: 'Processing queued', position });
   } catch (err: unknown) {
     res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
   }

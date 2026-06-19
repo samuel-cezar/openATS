@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import type { FormEvent } from 'react'
 import { api } from '../api'
 import type { PositionRecord, ProcessRecord } from '../api'
@@ -21,12 +21,18 @@ export default function PositionsPage({ processes }: { processes: ProcessRecord[
   const [expanded, setExpanded]   = useState<string | null>(null)
   const [pendingFiles, setPendingFiles] = useState<Record<string, File>>({})
   const [form, setForm] = useState({ selectionProcessId: '', title: '', jobDescription: '' })
+  // Pending poll timers keyed by position id, so we can cancel them on unmount.
+  const pollTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
 
   useEffect(() => { load() }, [])
   useEffect(() => {
     const h = (e: KeyboardEvent) => { if (e.key === 'Escape') closeForm() }
     window.addEventListener('keydown', h)
     return () => window.removeEventListener('keydown', h)
+  }, [])
+  // Clear any in-flight processing polls when the page unmounts.
+  useEffect(() => () => {
+    Object.values(pollTimers.current).forEach(clearTimeout)
   }, [])
 
   async function load() {
@@ -105,12 +111,32 @@ export default function PositionsPage({ processes }: { processes: ProcessRecord[
     setProcessingId(posId)
     try {
       await api.processPosition(posId)
-      const fresh = await api.getPosition(posId)
-      setPositions(ps => ps.map(p => (p.id || p._id) === posId ? fresh : p))
       setExpanded(posId)
-      toast('Skills extracted successfully')
-    } catch (err: unknown) { toast(err instanceof Error ? err.message : String(err), 'error') }
-    finally { setProcessingId(null) }
+      toast('Processing started — extracting skills…')
+      // Processing is async on the server; poll until the position flips to processed.
+      pollUntilProcessed(posId)
+    } catch (err: unknown) {
+      toast(err instanceof Error ? err.message : String(err), 'error')
+      setProcessingId(null)
+    }
+  }
+
+  // Re-fetch the position every 30s until processing completes, keeping the
+  // row's "Processing…" state until then.
+  function pollUntilProcessed(posId: string) {
+    pollTimers.current[posId] = setTimeout(async () => {
+      try {
+        const fresh = await api.getPosition(posId)
+        setPositions(ps => ps.map(p => (p.id || p._id) === posId ? fresh : p))
+        if (isProcessed(fresh) && !fresh.skillsStale) {
+          delete pollTimers.current[posId]
+          setProcessingId(p => (p === posId ? null : p))
+          toast('Skills extracted successfully')
+          return
+        }
+      } catch { /* transient fetch error — keep polling */ }
+      pollUntilProcessed(posId)
+    }, 30000)
   }
 
   function processName(id?: string) {
