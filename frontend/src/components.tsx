@@ -198,6 +198,16 @@ const NAV_ITEMS = [
       </svg>
     ),
   },
+  {
+    id: 'settings',
+    label: 'Settings',
+    icon: (
+      <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
+        <circle cx="7.5" cy="7.5" r="2" stroke="currentColor" strokeWidth="1.2"/>
+        <path d="M7.5 1.5v1.6M7.5 11.9v1.6M1.5 7.5h1.6M11.9 7.5h1.6M3.3 3.3l1.1 1.1M10.6 10.6l1.1 1.1M11.7 3.3l-1.1 1.1M4.4 10.6l-1.1 1.1" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
+      </svg>
+    ),
+  },
 ]
 
 export function Sidebar({ page, setPage }: { page: string; setPage: (page: string) => void }) {

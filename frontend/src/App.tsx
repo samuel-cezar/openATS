@@ -5,6 +5,7 @@ import ProcessesPage from './pages/ProcessesPage'
 import PositionsPage from './pages/PositionsPage'
 import CandidatesPage from './pages/CandidatesPage'
 import RankingPage from './pages/RankingPage'
+import SettingsPage from './pages/SettingsPage'
 
 export default function App() {
   const [page, setPage] = useState(
@@ -33,6 +34,9 @@ export default function App() {
           )}
           {page === 'ranking' && (
             <RankingPage processes={processes} />
+          )}
+          {page === 'settings' && (
+            <SettingsPage />
           )}
         </main>
       </div>

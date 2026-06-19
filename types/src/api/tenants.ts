@@ -12,6 +12,9 @@ export type CreateTenantResponse = Tenant;
 // GET /api/v1/tenants/:id
 export type GetTenantResponse = Tenant;
 
+// GET /api/v1/tenants/current — tenant keyed by the X-Tenant-Id header
+export type GetCurrentTenantResponse = Tenant;
+
 // PUT /api/v1/tenants/:id/weights
 export type UpdateTenantWeightsRequest = TenantWeights;
 export type UpdateTenantWeightsResponse = Tenant;

@@ -5,6 +5,7 @@ import type {
   CreatePositionRequest,
   CreateSelectionProcessRequest,
   DeletedResponse,
+  GetCurrentTenantResponse,
   GetPositionRankingResponse,
   ISODateString,
   ObjectId,
@@ -14,6 +15,8 @@ import type {
   SelectionProcess,
   UpdateCandidateRequest,
   UpdatePositionRequest,
+  UpdateTenantWeightsRequest,
+  UpdateTenantWeightsResponse,
   UploadCandidateResumeResponse,
   UploadPositionJobDescriptionResponse,
 } from '@openats/types';
@@ -184,4 +187,9 @@ export const api = {
   // ── Matches ──────────────────────────────────────────
   computeMatches: (positionId: ObjectId) =>
     apiFetch<ComputeMatchesResponse>('POST', `/matches/position/${positionId}`),
+
+  // ── Tenant (settings) ────────────────────────────────
+  getTenant: () => apiFetch<GetCurrentTenantResponse>('GET', '/tenants/current'),
+  updateTenantWeights: (data: UpdateTenantWeightsRequest) =>
+    apiFetch<UpdateTenantWeightsResponse>('PUT', '/tenants/current/weights', data),
 };
