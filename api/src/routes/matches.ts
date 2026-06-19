@@ -1,10 +1,8 @@
 import express, { type Request, type Response } from 'express';
-import mongoose from 'mongoose';
-import Tenant from '../models/Tenant.js';
 import Candidate from '../models/Candidate.js';
 import Position from '../models/Position.js';
 import Match, { type MatchDocument } from '../models/Match.js';
-import { computeMatch, DEFAULT_WEIGHTS, type MatchWeights } from '../helpers/similarity.js';
+import { computeMatch, resolveTenantWeights } from '../helpers/similarity.js';
 
 const router = express.Router();
 
@@ -15,12 +13,9 @@ router.post('/position/:positionId', async (req: Request<{ positionId: string }>
     if (!position) return res.status(404).json({ error: 'Position not found' });
 
     // Tenant ids are arbitrary header strings (e.g. "demo"), not necessarily
-    // Tenant document ids — fall back to the default weights when none
-    // resolves, mirroring services/5_matching.
-    const tenant = mongoose.isValidObjectId(req.tenantId)
-      ? await Tenant.findById(req.tenantId)
-      : null;
-    const weights: MatchWeights = tenant ?? DEFAULT_WEIGHTS;
+    // Tenant document ids — resolveTenantWeights looks up by key then ObjectId
+    // and falls back to the default weights, mirroring services/5_matching.
+    const weights = await resolveTenantWeights(req.tenantId);
 
     const candidates = await Candidate.find({
       tenantId: req.tenantId,

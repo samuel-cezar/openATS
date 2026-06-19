@@ -1,5 +1,7 @@
+import mongoose from 'mongoose';
 import Candidate from '../models/Candidate.js';
 import Position from '../models/Position.js';
+import Tenant from '../models/Tenant.js';
 
 export interface MatchWeights {
   alpha: number;
@@ -10,6 +12,17 @@ export interface MatchWeights {
 // ids; callers fall back to these schema defaults when no tenant document
 // resolves (services/5_matching applies the same fallback).
 export const DEFAULT_WEIGHTS: MatchWeights = { alpha: 0.6, beta: 0.4 };
+
+// Resolve a tenant's match weights from its X-Tenant-Id header string. The
+// header is the document's `key` (e.g. "demo"); we also accept a raw ObjectId
+// for back-compat, and fall back to DEFAULT_WEIGHTS when nothing resolves.
+// Mirrors get_weights in services/5_matching/main.py.
+export async function resolveTenantWeights(tenantId: string): Promise<MatchWeights> {
+  const tenant =
+    (await Tenant.findOne({ key: tenantId })) ??
+    (mongoose.isValidObjectId(tenantId) ? await Tenant.findById(tenantId) : null);
+  return tenant ? { alpha: tenant.alpha, beta: tenant.beta } : DEFAULT_WEIGHTS;
+}
 
 export function cosineSimilarity(vecA?: number[], vecB?: number[]): number {
   if (!vecA?.length || !vecB?.length || vecA.length !== vecB.length) return 0;
