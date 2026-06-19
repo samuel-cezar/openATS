@@ -72,13 +72,17 @@ def cosine_similarity(vec_a, vec_b) -> float:
 
 
 def get_weights(db, tenant_id: str) -> tuple[float, float]:
-    tenant = None
-    try:
-        tenant = db["tenants"].find_one(
-            {"_id": ObjectId(tenant_id)}, {"alpha": 1, "beta": 1}
-        )
-    except InvalidId:
-        pass  # non-ObjectId tenant ids (e.g. test tenants) fall back to defaults
+    # The X-Tenant-Id header (e.g. "demo") is the document's `key`; also accept a
+    # raw ObjectId for back-compat. Mirrors resolveTenantWeights in
+    # api/src/helpers/similarity.ts. Falls back to defaults when none resolves.
+    tenant = db["tenants"].find_one({"key": tenant_id}, {"alpha": 1, "beta": 1})
+    if tenant is None:
+        try:
+            tenant = db["tenants"].find_one(
+                {"_id": ObjectId(tenant_id)}, {"alpha": 1, "beta": 1}
+            )
+        except InvalidId:
+            pass  # non-ObjectId tenant ids (e.g. test tenants) fall back to defaults
     tenant = tenant or {}
     return tenant.get("alpha", DEFAULT_ALPHA), tenant.get("beta", DEFAULT_BETA)
 
